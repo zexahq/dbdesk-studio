@@ -15,42 +15,13 @@ import type {
   TableDataResult,
   TableInfo,
   UpdateTableCellResult,
-  TableSortRule,
-  TableFilterCondition
 } from '@common/types'
 
+import { httpClient } from './http-client'
+
 function getDbdesk() {
-  // return something temporary for now but fixing type errors 
-  // TODO: fix type errors / add proper implementation
-  return {
-    getAdapters: () => Promise.resolve([]),
-    listConnections: () => Promise.resolve([]),
-    getConnection: (connectionId: string) => Promise.resolve(null),
-    createConnection: (name: string, type: DatabaseType, options: DBConnectionOptions) => Promise.resolve(null),
-    updateConnection: (connectionId: string, name: string, type: DatabaseType, options: DBConnectionOptions) => Promise.resolve(null),
-    connect: (connectionId: string) => Promise.resolve(null),
-    disconnect: (connectionId: string) => Promise.resolve(null),
-    deleteConnection: (connectionId: string) => Promise.resolve(null),
-    runQuery: (connectionId: string, query: string, options?: { limit?: number; offset?: number }) => Promise.resolve(null),
-    listSchemas: (connectionId: string) => Promise.resolve([]),
-    listTables: (connectionId: string, schema: string) => Promise.resolve([]),
-    listSchemasWithTables: (connectionId: string) => Promise.resolve([]),
-    introspectTable: (connectionId: string, schema: string, table: string) => Promise.resolve(null),
-    fetchTableData: (connectionId: string, schema: string, table: string, options?: { limit?: number; offset?: number }) => Promise.resolve(null),
-    deleteTableRows: (connectionId: string, schema: string, table: string, rows: QueryResultRow[]) => Promise.resolve(null),
-    updateTableCell: (connectionId: string, schema: string, table: string, columnToUpdate: string, newValue: unknown, row: QueryResultRow) => Promise.resolve(null),
-    loadWorkspace: (connectionId: string) => Promise.resolve(null),
-    saveWorkspace: (workspace: ConnectionWorkspace) => Promise.resolve(null),
-    deleteWorkspace: (connectionId: string) => Promise.resolve(null),
-    loadQueries: (connectionId: string) => Promise.resolve([]),
-    saveQuery: (connectionId: string, id: string, name: string, content: string) => Promise.resolve(null),
-    deleteQuery: (connectionId: string, queryId: string) => Promise.resolve(null),
-    updateQuery: (connectionId: string, queryId: string, name: string, content: string) => Promise.resolve(null),
-    exportTableAsCSV: (connectionId: string, schema: string, table: string, options?: { sortRules?: TableSortRule[]; filters?: TableFilterCondition[] }) => Promise.resolve(null),
-    exportTableAsSQL: (connectionId: string, schema: string, table: string, options?: { sortRules?: TableSortRule[]; filters?: TableFilterCondition[] }) => Promise.resolve(null),
-    deleteTable: (connectionId: string, schema: string, table: string) => Promise.resolve(null),
-  } as any
-  }
+  return httpClient
+}
 
 export const dbdeskClient = {
   async getAdapters(): Promise<DatabaseType[]> {
@@ -216,6 +187,7 @@ export type {
   ConnectionProfile,
   DatabaseType,
   DBConnectionOptions,
+  DeleteTableResult,
   DeleteTableRowsResult,
   ExportTableOptions,
   ExportTableResult,

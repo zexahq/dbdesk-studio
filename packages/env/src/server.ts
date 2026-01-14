@@ -6,6 +6,7 @@ export const env = createEnv({
   server: {
     CORS_ORIGIN: z.url(),
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+    STORAGE_PATH: z.string().optional(),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,

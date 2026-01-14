@@ -10,10 +10,13 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@dbdesk-studio/common": "workspace:*",
     "@dbdesk-studio/env": "workspace:*",
     "cors": "^2.8.5",
     "dotenv": "catalog:",
     "express": "^5.1.0",
+    "mysql2": "^3.16.0",
+    "pg": "^8.16.3",
     "zod": "catalog:"
   },
   "devDependencies": {
