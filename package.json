@@ -1,18 +1,38 @@
 {
   "name": "dbdesk-studio",
-  "private": true,
+  "version": "0.0.1",
+  "description": "Database management studio with a web interface",
+  "bin": {
+    "dbdesk-studio": "./packages/cli/dist/cli.js"
+  },
+  "type": "module",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
-  "type": "module",
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
     "typecheck": "turbo check-types",
     "dev:native": "turbo -F native dev",
     "dev:web": "turbo -F web dev",
-    "dev:server": "turbo -F server dev"
+    "dev:server": "turbo -F server dev",
+    "start": "node packages/cli/dist/cli.js",
+    "publish:prepare": "pnpm build && chmod +x packages/cli/dist/cli.js"
+  },
+  "keywords": [
+    "database",
+    "studio",
+    "web-ui",
+    "sql",
+    "postgresql",
+    "mysql"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zexahq/dbdesk-studio.git"
   },
   "dependencies": {
     "@dbdesk-studio/env": "workspace:*",

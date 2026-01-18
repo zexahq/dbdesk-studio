@@ -1,0 +1,38 @@
+{
+  "name": "dbdesk-studio",
+  "version": "0.0.1",
+  "description": "Database management studio with a web interface",
+  "type": "module",
+  "bin": {
+    "dbdesk-studio": "./dist/cli.js"
+  },
+  "main": "dist/cli.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc && echo '#!/usr/bin/env node' | cat - dist/cli.js > dist/cli.tmp && mv dist/cli.tmp dist/cli.js && chmod +x dist/cli.js",
+    "dev": "tsx src/cli.ts",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "tsx": "^4.19.2"
+  },
+  "keywords": [
+    "database",
+    "studio",
+    "web-ui",
+    "sql"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zexahq/dbdesk-studio.git"
+  }
+}

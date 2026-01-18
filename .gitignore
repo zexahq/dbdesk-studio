@@ -48,3 +48,6 @@ coverage
 .cache
 tmp
 temp
+
+# Documentation (local only)
+docs/

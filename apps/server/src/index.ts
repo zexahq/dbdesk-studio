@@ -23,9 +23,21 @@ import { deleteWorkspace, loadWorkspace, saveWorkspace } from './workspace-stora
 
 const app: Application = express()
 
+// Get port from environment or default to 3000
+const PORT = parseInt(process.env.PORT || '3000', 10)
+
+// Get frontend URL from environment for CORS
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:9876'
+const CORS_ORIGIN = process.env.CORS_ORIGIN || [
+  'http://localhost:9876',
+  'http://localhost:3001',
+  'http://127.0.0.1:9876',
+  'http://127.0.0.1:3001'
+]
+
 // Middleware
 app.use(cors({
-  origin: 'http://localhost:3001',
+  origin: CORS_ORIGIN,
   credentials: true
 }))
 
@@ -646,7 +658,7 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: message })
 })
 
-app.listen(3000, () => {
-  console.log('Server is running on port 3000')
-  console.log('http://localhost:3000')
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`)
+  console.log(`http://localhost:${PORT}`)
 })

@@ -1,49 +1,180 @@
 # dbdesk-studio
 
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines React, TanStack Router, Express, and more.
+A modern database management studio with a beautiful web interface. Manage PostgreSQL, MySQL, and other databases with ease.
+
+## Installation
+
+### Via NPM (recommended)
+
+```bash
+npm install -g dbdesk-studio
+dbdesk-studio
+```
+
+Or run directly without installation:
+
+```bash
+npx dbdesk-studio
+```
+
+### Via PNPM (local development)
+
+```bash
+git clone https://github.com/zexahq/dbdesk-studio.git
+cd dbdesk-studio
+pnpm install
+pnpm build
+pnpm start
+```
 
 ## Features
 
-- **TypeScript** - For type safety and improved developer experience
-- **TanStack Router** - File-based routing with full type safety
-- **TailwindCSS** - Utility-first CSS for rapid UI development
-- **shadcn/ui** - Reusable UI components
-- **Express** - Fast, unopinionated web framework
-- **Node.js** - Runtime environment
-- **Turborepo** - Optimized monorepo build system
+- 🎨 **Modern Web Interface** - Built with React and TanStack Router
+- 🗄️ **Multi-Database Support** - PostgreSQL, MySQL, and more
+- 📝 **Query Editor** - Full-featured SQL editor with syntax highlighting
+- 📊 **Table Browser** - Browse and edit data directly
+- 💾 **Saved Queries** - Save and organize your queries
+- 📈 **Export Data** - Export tables as CSV or SQL
+- 🎯 **Type-Safe** - Built entirely in TypeScript
+- 🚀 **Fast** - Powered by Vite and Express
 
-## Getting Started
+## Quick Start
 
-First, install the dependencies:
+### Default Configuration
 
 ```bash
+dbdesk-studio
+```
+
+- Frontend: http://localhost:9876
+- Backend: http://localhost:3000
+
+### Custom Ports
+
+```bash
+dbdesk-studio --backend-port 4000 --frontend-port 8080
+```
+
+### External Backend
+
+```bash
+dbdesk-studio --backend-url http://api.example.com:3000
+```
+
+## Options
+
+```
+Usage: dbdesk-studio [options]
+
+Options:
+  --backend-port <port>     Backend server port (default: 3000)
+  --frontend-port <port>    Frontend server port (default: 9876)
+  --backend-url <url>       Backend URL for frontend (default: http://localhost:3000)
+  --help, -h               Show this help message
+```
+
+## Development
+
+### Prerequisites
+
+- Node.js 18+
+- pnpm 10.13.1+
+
+### Setup
+
+```bash
+git clone https://github.com/zexahq/dbdesk-studio.git
+cd dbdesk-studio
 pnpm install
 ```
 
-Then, run the development server:
+### Development Mode
 
 ```bash
 pnpm run dev
 ```
 
-Open [http://localhost:3001](http://localhost:3001) in your browser to see the web application.
-The API is running at [http://localhost:3000](http://localhost:3000).
+This starts:
+- Frontend: http://localhost:3001
+- Backend: http://localhost:3000
+
+### Build
+
+```bash
+pnpm run build
+```
+
+### Type Checking
+
+```bash
+pnpm run typecheck
+```
 
 ## Project Structure
 
 ```
 dbdesk-studio/
 ├── apps/
-│   ├── web/         # Frontend application (React + TanStack Router)
-│   └── server/      # Backend API (Express)
+│   ├── web/              # Frontend (React + TanStack Router + Vite)
+│   └── server/           # Backend API (Express)
 ├── packages/
-│   ├── api/         # API layer / business logic
+│   ├── common/           # Shared types and utilities
+│   ├── config/           # Shared configuration
+│   ├── env/              # Environment variables
+│   └── cli/              # CLI entry point
+└── turbo.json            # Monorepo configuration
 ```
 
-## Available Scripts
+## Features in Detail
 
-- `pnpm run dev`: Start all applications in development mode
-- `pnpm run build`: Build all applications
-- `pnpm run dev:web`: Start only the web application
-- `pnpm run dev:server`: Start only the server
-- `pnpm run check-types`: Check TypeScript types across all apps
+### Connections
+- Save and manage multiple database connections
+- Support for PostgreSQL and MySQL
+- Connection profiles with credentials
+
+### Query Editor
+- Full-featured SQL editor with Monaco Editor
+- Syntax highlighting for SQL
+- Query history and saved queries
+- Execute queries and view results
+
+### Data Browser
+- Browse tables and schemas
+- View and edit table data inline
+- Filter and sort data
+- Delete rows and export data
+
+### Workspace
+- Save your workspace configuration
+- Auto-save workspace state
+- Quick access to saved queries
+
+## Troubleshooting
+
+### Port Already in Use
+Use different ports:
+```bash
+dbdesk-studio --backend-port 4000 --frontend-port 8080
+```
+
+### CORS Errors
+If frontend can't connect to backend, ensure the backend URL is correct:
+```bash
+dbdesk-studio --backend-url http://localhost:3000
+```
+
+### Build Issues
+Clean and rebuild:
+```bash
+pnpm clean
+pnpm install
+pnpm build
+```
+
+## Publishing to NPM
+
+See [PUBLISH.md](./PUBLISH.md) for detailed instructions on publishing to NPM.
+
+## License
+
+MIT

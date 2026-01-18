@@ -13,6 +13,6 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3001,
+    port: process.env.FRONTEND_PORT ? parseInt(process.env.FRONTEND_PORT) : 3001,
   },
 });
