@@ -14,9 +14,9 @@ interface Config {
 }
 
 const DEFAULT_CONFIG: Config = {
-  backendPort: 3000,
+  backendPort: 6789,
   frontendPort: 9876,
-  backendUrl: 'http://localhost:3000'
+  backendUrl: 'http://localhost:6789'
 }
 
 function parseArgs() {
@@ -50,9 +50,9 @@ function printHelp() {
   Usage: dbdesk-studio [options]
 
   Options:
-    --backend-port <port>     Backend server port (default: 3000)
+    --backend-port <port>     Backend server port (default: 6789)
     --frontend-port <port>    Frontend server port (default: 9876)
-    --backend-url <url>       Backend URL for frontend (default: http://localhost:3000)
+    --backend-url <url>       Backend URL for frontend (default: http://localhost:6789)
     --help, -h               Show this help message
 
   Examples:

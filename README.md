@@ -47,7 +47,7 @@ dbdesk-studio
 ```
 
 - Frontend: http://localhost:9876
-- Backend: http://localhost:3000
+- Backend: http://localhost:6789
 
 ### Custom Ports
 
@@ -58,7 +58,7 @@ dbdesk-studio --backend-port 4000 --frontend-port 8080
 ### External Backend
 
 ```bash
-dbdesk-studio --backend-url http://api.example.com:3000
+dbdesk-studio --backend-url http://api.example.com:6789
 ```
 
 ## Options
@@ -67,9 +67,9 @@ dbdesk-studio --backend-url http://api.example.com:3000
 Usage: dbdesk-studio [options]
 
 Options:
-  --backend-port <port>     Backend server port (default: 3000)
+  --backend-port <port>     Backend server port (default: 6789)
   --frontend-port <port>    Frontend server port (default: 9876)
-  --backend-url <url>       Backend URL for frontend (default: http://localhost:3000)
+  --backend-url <url>       Backend URL for frontend (default: http://localhost:6789)
   --help, -h               Show this help message
 ```
 
@@ -96,7 +96,7 @@ pnpm run dev
 
 This starts:
 - Frontend: http://localhost:3001
-- Backend: http://localhost:3000
+- Backend: http://localhost:6789
 
 ### Build
 
@@ -160,7 +160,7 @@ dbdesk-studio --backend-port 4000 --frontend-port 8080
 ### CORS Errors
 If frontend can't connect to backend, ensure the backend URL is correct:
 ```bash
-dbdesk-studio --backend-url http://localhost:3000
+dbdesk-studio --backend-url http://localhost:6789
 ```
 
 ### Build Issues

@@ -23,11 +23,10 @@ import { deleteWorkspace, loadWorkspace, saveWorkspace } from './workspace-stora
 
 const app: Application = express()
 
-// Get port from environment or default to 3000
-const PORT = parseInt(process.env.PORT || '3000', 10)
+// Get port from environment or default to 6789
+const PORT = parseInt(process.env.PORT || '6789', 10)
 
 // Get frontend URL from environment for CORS
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:9876'
 const CORS_ORIGIN = process.env.CORS_ORIGIN || [
   'http://localhost:9876',
   'http://localhost:3001',
