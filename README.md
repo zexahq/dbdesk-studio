@@ -170,11 +170,6 @@ pnpm clean
 pnpm install
 pnpm build
 ```
-
-## Publishing to NPM
-
-See [PUBLISH.md](./PUBLISH.md) for detailed instructions on publishing to NPM.
-
 ## License
 
 MIT
