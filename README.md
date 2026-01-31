@@ -77,8 +77,8 @@ Options:
 
 ### Prerequisites
 
-- Node.js 18+
-- pnpm 10.13.1+
+- Node.js >=20
+- pnpm >=10.13.1
 
 ### Setup
 
