@@ -3,7 +3,6 @@ import Editor from '@monaco-editor/react'
 import { useTheme } from '@/hooks/use-theme'
 import type { editor } from 'monaco-editor'
 import { KeyCode, KeyMod } from 'monaco-editor'
-import { LanguageIdEnum } from 'monaco-sql-languages'
 import { useEffect, useRef, useState } from 'react'
 
 interface SqlEditorProps {
@@ -22,7 +21,7 @@ export default function SqlEditor({ value, onChange, language, onExecute }: SqlE
   const [height, setHeight] = useState('400px')
 
   const editorTheme = theme === 'dark' ? 'vs-dark' : 'vs'
-  const languageId = language === 'mysql' ? LanguageIdEnum.MYSQL : LanguageIdEnum.PG
+  const languageId = language === 'mysql' ? 'mysql' : 'pgsql'
 
   // Keep onExecute ref updated
   useEffect(() => {

@@ -109,8 +109,6 @@ function startBackend(config: Config): Promise<void> {
     const args = useTs ? [serverPath] : []
     const cmd = useTs ? 'tsx' : 'node'
 
-    console.log(`🚀 Starting backend on port ${config.backendPort}...`)
-
     const env = {
       ...process.env,
       PORT: String(config.backendPort),
@@ -119,7 +117,7 @@ function startBackend(config: Config): Promise<void> {
 
     const backend = spawn(cmd, args, {
       env,
-      stdio: 'inherit'
+      stdio: 'ignore'
     })
 
     backend.on('error', (err) => {
@@ -129,7 +127,6 @@ function startBackend(config: Config): Promise<void> {
 
     // Give backend time to start
     setTimeout(() => {
-      console.log(`✅ Backend started on port ${config.backendPort}`)
       resolve()
     }, 2000)
   })
@@ -138,8 +135,6 @@ function startBackend(config: Config): Promise<void> {
 function startFrontend(config: Config): Promise<void> {
   return new Promise((resolve, reject) => {
     const webDistPath = getWebDistPath()
-
-    console.log(`🚀 Starting frontend on port ${config.frontendPort}...`)
 
     // Create a simple HTTP server to serve static files
     const serverScript = `
@@ -182,9 +177,7 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(port, () => {
-  console.log('✅ Frontend started on port ' + port);
-});
+server.listen(port, () => {});
 `
 
     const frontendServer = spawn('node', ['-e', serverScript], {
@@ -197,7 +190,6 @@ server.listen(port, () => {
     })
 
     setTimeout(() => {
-      console.log(`🌐 Open http://localhost:${config.frontendPort} in your browser`)
       resolve()
     }, 1000)
   })
@@ -206,19 +198,6 @@ server.listen(port, () => {
 async function main() {
   const config = parseArgs()
 
-  console.log(`
-╔═══════════════════════════════════════════╗
-║   dbdesk-studio v0.0.1                    ║
-║   Database Management Studio              ║
-╚═══════════════════════════════════════════╝
-  `)
-
-  console.log('Configuration:')
-  console.log(`  Backend Port: ${config.backendPort}`)
-  console.log(`  Frontend Port: ${config.frontendPort}`)
-  console.log(`  Backend URL: ${config.backendUrl}`)
-  console.log('')
-
   try {
     // Start both services
     await Promise.all([
@@ -226,12 +205,7 @@ async function main() {
       startFrontend(config)
     ])
 
-    console.log('')
-    console.log('🎉 All services started successfully!')
-    console.log(`📖 Frontend: http://localhost:${config.frontendPort}`)
-    console.log(`🔌 Backend: http://localhost:${config.backendPort}`)
-    console.log('')
-    console.log('Press Ctrl+C to stop all services')
+    console.log(`dbdesk-studio running at http://localhost:${config.frontendPort}`)
   } catch (err) {
     console.error('❌ Failed to start services:', err)
     process.exit(1)
