@@ -23,7 +23,7 @@ npx dbdesk-studio
 
 ## Quick Start
 
-After running `dbdesk-studio`, the web interface will start at `http://localhost:3000`
+After running `dbdesk-studio`, the web interface will start at `http://localhost:9876`
 
 ## Features
 
@@ -51,7 +51,7 @@ dbdesk-studio
 
 ## Configuration
 
-Set database connection details in the UI or use environment variables.
+Set database connection details directly in the web interface.
 
 ## License
 
