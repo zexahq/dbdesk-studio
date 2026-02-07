@@ -10,43 +10,43 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ConnetionsConnectionIdRouteImport } from './routes/connetions.$connectionId'
+import { Route as ConnectionsConnectionIdRouteImport } from './routes/connections.$connectionId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ConnetionsConnectionIdRoute = ConnetionsConnectionIdRouteImport.update({
-  id: '/connetions/$connectionId',
-  path: '/connetions/$connectionId',
+const ConnectionsConnectionIdRoute = ConnectionsConnectionIdRouteImport.update({
+  id: '/connections/$connectionId',
+  path: '/connections/$connectionId',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/connetions/$connectionId': typeof ConnetionsConnectionIdRoute
+  '/connections/$connectionId': typeof ConnectionsConnectionIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/connetions/$connectionId': typeof ConnetionsConnectionIdRoute
+  '/connections/$connectionId': typeof ConnectionsConnectionIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/connetions/$connectionId': typeof ConnetionsConnectionIdRoute
+  '/connections/$connectionId': typeof ConnectionsConnectionIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/connetions/$connectionId'
+  fullPaths: '/' | '/connections/$connectionId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/connetions/$connectionId'
-  id: '__root__' | '/' | '/connetions/$connectionId'
+  to: '/' | '/connections/$connectionId'
+  id: '__root__' | '/' | '/connections/$connectionId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ConnetionsConnectionIdRoute: typeof ConnetionsConnectionIdRoute
+  ConnectionsConnectionIdRoute: typeof ConnectionsConnectionIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -58,11 +58,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/connetions/$connectionId': {
-      id: '/connetions/$connectionId'
-      path: '/connetions/$connectionId'
-      fullPath: '/connetions/$connectionId'
-      preLoaderRoute: typeof ConnetionsConnectionIdRouteImport
+    '/connections/$connectionId': {
+      id: '/connections/$connectionId'
+      path: '/connections/$connectionId'
+      fullPath: '/connections/$connectionId'
+      preLoaderRoute: typeof ConnectionsConnectionIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -70,7 +70,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ConnetionsConnectionIdRoute: ConnetionsConnectionIdRoute,
+  ConnectionsConnectionIdRoute: ConnectionsConnectionIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

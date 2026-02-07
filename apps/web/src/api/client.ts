@@ -44,6 +44,10 @@ export const dbdeskClient = {
     return getDbdesk().createConnection(name, type, options)
   },
 
+  async createConnectionFromUri(uri: string): Promise<ConnectionProfile> {
+    return getDbdesk().createConnectionFromUri(uri)
+  },
+
   async updateConnection(
     connectionId: string,
     name: string,

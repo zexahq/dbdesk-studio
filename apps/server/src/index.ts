@@ -100,6 +100,105 @@ app.post('/api/connections', async (req: Request, res: Response, next: NextFunct
   }
 })
 
+// Create connection from URI (connection string)
+app.post('/api/connections/from-uri', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { uri } = req.body as { uri: string }
+
+    if (!uri) {
+      res.status(400).json({ error: 'Missing required field: uri' })
+      return
+    }
+
+    // Parse the connection URI
+    let parsedUrl: URL
+    try {
+      parsedUrl = new URL(uri)
+    } catch {
+      res.status(400).json({ error: 'Invalid URI format' })
+      return
+    }
+
+    const protocol = parsedUrl.protocol.replace(':', '')
+    let type: DatabaseType
+
+    // Determine database type from protocol
+    if (protocol === 'postgres' || protocol === 'postgresql') {
+      type = 'postgres'
+    } else if (protocol === 'mysql') {
+      type = 'mysql'
+    } else {
+      res.status(400).json({ 
+        error: `Unsupported protocol: ${protocol}. Supported protocols: postgresql://, postgres://, mysql://` 
+      })
+      return
+    }
+
+    // Extract connection details
+    const database = parsedUrl.pathname.replace('/', '')
+    if (!database) {
+      res.status(400).json({ error: 'Missing database name in URI' })
+      return
+    }
+
+    const host = parsedUrl.hostname
+    const port = parsedUrl.port 
+      ? parseInt(parsedUrl.port, 10) 
+      : (type === 'postgres' ? 5432 : 3306)
+    const user = decodeURIComponent(parsedUrl.username || '')
+    const password = decodeURIComponent(parsedUrl.password || '')
+
+    if (!host) {
+      res.status(400).json({ error: 'Missing host in URI' })
+      return
+    }
+
+    // Parse SSL mode from query parameters
+    const sslModeParam = parsedUrl.searchParams.get('sslmode') || parsedUrl.searchParams.get('ssl-mode')
+    const sslMode = sslModeParam || 'disable'
+
+    // Build connection options
+    const options = {
+      host,
+      port,
+      database,
+      user,
+      password,
+      sslMode
+    }
+
+    // Check if adapter is available
+    if (!adapterRegistry.getFactory(type)) {
+      res.status(400).json({ error: `Adapter "${type}" is not available` })
+      return
+    }
+
+    // Create connection name from database name
+    const name = `${database}@${host}`
+
+    const now = new Date()
+    const profile = {
+      id: randomUUID(),
+      name,
+      type,
+      options,
+      createdAt: now,
+      updatedAt: now
+    } as ConnectionProfile
+
+    // Save the profile
+    await saveProfile(profile)
+
+    // Immediately establish the connection
+    const manager = ConnectionManager.getInstance()
+    await manager.createConnection(profile.id, type, options)
+
+    res.status(201).json(profile)
+  } catch (err) {
+    next(err)
+  }
+})
+
 app.get(
   '/api/connections/:connectionId',
   async (req: Request, res: Response, next: NextFunction) => {

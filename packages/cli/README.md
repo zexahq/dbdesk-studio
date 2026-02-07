@@ -25,6 +25,23 @@ npx dbdesk-studio
 
 After running `dbdesk-studio`, the web interface will start at `http://localhost:9876`
 
+### Quick Connect with URI
+
+You can connect directly to a database using a connection URI:
+
+```bash
+# PostgreSQL
+npx dbdesk-studio --uri "postgresql://user:password@localhost:5432/mydb"
+
+# MySQL
+npx dbdesk-studio --uri "mysql://user:password@localhost:3306/mydb"
+
+# With SSL
+npx dbdesk-studio --uri "postgresql://user:password@localhost:5432/mydb?sslmode=require"
+```
+
+This will start the studio and automatically open your browser connected to the specified database.
+
 ## Features
 
 - 🗄️ Support for PostgreSQL, MySQL, and more
@@ -45,8 +62,22 @@ After running `dbdesk-studio`, the web interface will start at `http://localhost
 # Start the studio
 dbdesk-studio
 
+# Connect directly with a URI
+dbdesk-studio --uri "postgresql://user:pass@localhost:5432/mydb"
+
 # The web interface opens automatically
 # Default: http://localhost:9876
+```
+
+## CLI Options
+
+```
+--uri <connection-string>  Database connection URI (opens directly to connection)
+                           Supports: postgresql://, postgres://, mysql://
+--backend-port <port>      Backend server port (default: 6789)
+--frontend-port <port>     Frontend server port (default: 9876)
+--backend-url <url>        Backend URL for frontend (default: http://localhost:6789)
+--help, -h                 Show help message
 ```
 
 ## Configuration

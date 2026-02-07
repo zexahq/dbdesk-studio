@@ -72,7 +72,7 @@ export function QuickPanel() {
       }
 
       navigate({
-        to: '/connetions/$connectionId',
+        to: '/connections/$connectionId',
         params: { connectionId }
       })
       setOpen(false)

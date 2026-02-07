@@ -11,12 +11,14 @@ interface Config {
   backendPort: number
   frontendPort: number
   backendUrl: string
+  uri?: string
 }
 
 const DEFAULT_CONFIG: Config = {
   backendPort: 6789,
   frontendPort: 9876,
-  backendUrl: 'http://localhost:6789'
+  backendUrl: 'http://localhost:6789',
+  uri: undefined
 }
 
 function parseArgs() {
@@ -36,9 +38,18 @@ function parseArgs() {
       const url = args[i + 1]
       if (url) config.backendUrl = url
       i++
-    } else if (args[i] === '--help' || args[i] === '-h') {
-      printHelp()
-      process.exit(0)
+    } else if (args[i] === '--uri') {
+      const uri = args[i + 1]
+      if (uri) config.uri = uri
+      i++
+    } else {
+      const arg = args[i]
+      if (arg && arg.startsWith('--uri=')) {
+        config.uri = arg.slice('--uri='.length)
+      } else if (arg === '--help' || arg === '-h') {
+        printHelp()
+        process.exit(0)
+      }
     }
   }
 
@@ -50,13 +61,17 @@ function printHelp() {
   Usage: dbdesk-studio [options]
 
   Options:
-    --backend-port <port>     Backend server port (default: 6789)
-    --frontend-port <port>    Frontend server port (default: 9876)
-    --backend-url <url>       Backend URL for frontend (default: http://localhost:6789)
-    --help, -h               Show this help message
+    --uri <connection-string>  Database connection URI (opens directly to connection)
+                               Supports: postgresql://, postgres://, mysql://
+    --backend-port <port>      Backend server port (default: 6789)
+    --frontend-port <port>     Frontend server port (default: 9876)
+    --backend-url <url>        Backend URL for frontend (default: http://localhost:6789)
+    --help, -h                 Show this help message
 
   Examples:
     dbdesk-studio
+    dbdesk-studio --uri "postgresql://user:pass@localhost:5432/mydb"
+    dbdesk-studio --uri="mysql://user:pass@localhost:3306/mydb"
     dbdesk-studio --backend-port 4000 --frontend-port 8080
     dbdesk-studio --backend-url http://api.example.com
   `)
@@ -205,11 +220,37 @@ async function main() {
       startFrontend(config)
     ])
 
-    console.log(`dbdesk-studio running at http://localhost:${config.frontendPort}`)
+    // Build the URL with optional URI parameter
+    let appUrl = `http://localhost:${config.frontendPort}`
+    if (config.uri) {
+      appUrl += `?uri=${encodeURIComponent(config.uri)}`
+    }
+
+    console.log(`dbdesk-studio running at ${appUrl}`)
+
+    // Open browser automatically if URI is provided
+    if (config.uri) {
+      openBrowser(appUrl)
+    }
   } catch (err) {
     console.error('❌ Failed to start services:', err)
     process.exit(1)
   }
+}
+
+function openBrowser(url: string) {
+  const platform = process.platform
+  let command: string
+
+  if (platform === 'darwin') {
+    command = 'open'
+  } else if (platform === 'win32') {
+    command = 'start'
+  } else {
+    command = 'xdg-open'
+  }
+
+  spawn(command, [url], { stdio: 'ignore', detached: true }).unref()
 }
 
 main()

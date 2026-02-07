@@ -69,6 +69,13 @@ import type {
         body: JSON.stringify({ name, type, options })
       })
     },
+
+    async createConnectionFromUri(uri: string): Promise<ConnectionProfile> {
+      return request<ConnectionProfile>('/api/connections/from-uri', {
+        method: 'POST',
+        body: JSON.stringify({ uri })
+      })
+    },
   
     async updateConnection(
       connectionId: string,
