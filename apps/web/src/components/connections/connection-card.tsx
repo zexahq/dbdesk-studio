@@ -66,7 +66,7 @@ export function ConnectionCard({ profile, onEdit }: ConnectionCardProps) {
         }
 
         navigate({
-          to: '/connetions/$connectionId',
+          to: '/connections/$connectionId',
           params: { connectionId: profile.id }
         })
       },

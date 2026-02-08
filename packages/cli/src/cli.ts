@@ -11,12 +11,14 @@ interface Config {
   backendPort: number
   frontendPort: number
   backendUrl: string
+  uri?: string
 }
 
 const DEFAULT_CONFIG: Config = {
   backendPort: 6789,
   frontendPort: 9876,
-  backendUrl: 'http://localhost:6789'
+  backendUrl: 'http://localhost:6789',
+  uri: undefined
 }
 
 function parseArgs() {
@@ -36,9 +38,23 @@ function parseArgs() {
       const url = args[i + 1]
       if (url) config.backendUrl = url
       i++
-    } else if (args[i] === '--help' || args[i] === '-h') {
-      printHelp()
-      process.exit(0)
+    } else if (args[i] === '--uri') {
+      const next = args[i + 1]
+      if (!next || next.startsWith('-')) {
+        console.error('Error: --uri requires a value.')
+        printHelp()
+        process.exit(1)
+      }
+      config.uri = next
+      i++
+    } else {
+      const arg = args[i]
+      if (arg && arg.startsWith('--uri=')) {
+        config.uri = arg.slice('--uri='.length)
+      } else if (arg === '--help' || arg === '-h') {
+        printHelp()
+        process.exit(0)
+      }
     }
   }
 
@@ -50,13 +66,17 @@ function printHelp() {
   Usage: dbdesk-studio [options]
 
   Options:
-    --backend-port <port>     Backend server port (default: 6789)
-    --frontend-port <port>    Frontend server port (default: 9876)
-    --backend-url <url>       Backend URL for frontend (default: http://localhost:6789)
-    --help, -h               Show this help message
+    --uri <connection-string>  Database connection URI (opens directly to connection)
+                               Supports: postgresql://, postgres://, mysql://
+    --backend-port <port>      Backend server port (default: 6789)
+    --frontend-port <port>     Frontend server port (default: 9876)
+    --backend-url <url>        Backend URL for frontend (default: http://localhost:6789)
+    --help, -h                 Show this help message
 
   Examples:
     dbdesk-studio
+    dbdesk-studio --uri "postgresql://user:pass@localhost:5432/mydb"
+    dbdesk-studio --uri="mysql://user:pass@localhost:3306/mydb"
     dbdesk-studio --backend-port 4000 --frontend-port 8080
     dbdesk-studio --backend-url http://api.example.com
   `)
@@ -205,10 +225,60 @@ async function main() {
       startFrontend(config)
     ])
 
-    console.log(`dbdesk-studio running at http://localhost:${config.frontendPort}`)
+    const baseUrl = `http://localhost:${config.frontendPort}`
+
+    // If URI is provided, create connection via backend API first
+    if (config.uri) {
+      console.log('dbdesk-studio running...')
+      console.log('Creating connection from URI...')
+      
+      try {
+        const connectionId = await createConnectionFromUri(config.uri, config.backendPort)
+        const appUrl = `${baseUrl}/connections/${connectionId}`
+        console.log(`Connection created! Opening ${baseUrl}/connections/<id>`)
+        openBrowser(appUrl)
+      } catch (err) {
+        console.error('Failed to create connection from URI:', err instanceof Error ? err.message : err)
+        console.log(`You can still access the studio at ${baseUrl}`)
+        openBrowser(baseUrl)
+      }
+    } else {
+      console.log(`dbdesk-studio running at ${baseUrl}`)
+    }
   } catch (err) {
     console.error('❌ Failed to start services:', err)
     process.exit(1)
+  }
+}
+
+async function createConnectionFromUri(uri: string, backendPort: number): Promise<string> {
+  const response = await fetch(`http://localhost:${backendPort}/api/connections/from-uri`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ uri })
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+    throw new Error(errorData.error || `HTTP ${response.status}`)
+  }
+
+  const profile = await response.json() as { id: string }
+  return profile.id
+}
+
+function openBrowser(url: string) {
+  const platform = process.platform
+
+  if (platform === 'darwin') {
+    spawn('open', [url], { stdio: 'ignore', detached: true }).unref()
+  } else if (platform === 'win32') {
+    // 'start' is a cmd.exe builtin, not an executable
+    spawn('cmd.exe', ['/c', 'start', '""', url], { stdio: 'ignore', detached: true }).unref()
+  } else {
+    spawn('xdg-open', [url], { stdio: 'ignore', detached: true }).unref()
   }
 }
 

@@ -11,7 +11,8 @@ import type {
   UpdateTableCellOptions,
   UpdateTableCellResult
 } from '@common/types'
-import type { FieldPacket, Pool, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
+import type { PostgreSQLSslMode } from '@common/types/sql'
+import type { FieldPacket, Pool, PoolOptions, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import * as mysql from 'mysql2/promise'
 import { performance } from 'node:perf_hooks'
 
@@ -33,6 +34,34 @@ import { isSelectableQuery, normalizeQuery } from '../lib/sql-parser'
 
 const DEFAULT_TIMEOUT_MS = 30_000
 
+/**
+ * Convert SSL mode to mysql2 SSL configuration
+ * Maps PostgreSQL-style SSL modes to mysql2 pool SSL options
+ */
+function getSslConfig(sslMode?: PostgreSQLSslMode): PoolOptions['ssl'] {
+  switch (sslMode) {
+    case 'disable':
+      return undefined
+    case 'allow':
+      // Allow SSL but don't require it - mysql2 will try SSL first
+      return { rejectUnauthorized: false }
+    case 'prefer':
+      // Prefer SSL but don't require verification
+      return { rejectUnauthorized: false }
+    case 'require':
+      // Require SSL but don't verify certificate
+      return { rejectUnauthorized: false }
+    case 'verify-ca':
+      // Require SSL and verify CA (rejectUnauthorized: true)
+      return { rejectUnauthorized: true }
+    case 'verify-full':
+      // Require SSL and verify CA + hostname
+      return { rejectUnauthorized: true }
+    default:
+      return undefined
+  }
+}
+
 export class MySQLAdapter implements SQLAdapter {
   private pool: Pool | null = null
 
@@ -43,12 +72,15 @@ export class MySQLAdapter implements SQLAdapter {
       return
     }
 
+    const sslConfig = getSslConfig(this.options.sslMode)
+
     const pool = mysql.createPool({
       host: this.options.host,
       port: this.options.port,
       database: this.options.database,
       user: this.options.user,
       password: this.options.password,
+      ssl: sslConfig,
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,

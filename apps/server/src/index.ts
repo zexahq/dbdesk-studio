@@ -18,7 +18,7 @@ import { connectionManager, ConnectionManager } from './connectionManager'
 import { deleteQuery, loadQueries, saveQuery, updateQuery } from './saved-queries-storage'
 import { deleteProfile, getProfile, loadProfiles, saveProfile } from './storage'
 import { ValidationError } from './utils/errors'
-import { getRouteParam } from './utils/validation'
+import { getRouteParam, validateConnectionUri } from './utils/validation'
 import { deleteWorkspace, loadWorkspace, saveWorkspace } from './workspace-storage'
 
 const app: Application = express()
@@ -94,6 +94,49 @@ app.post('/api/connections', async (req: Request, res: Response, next: NextFunct
     } as ConnectionProfile
 
     await saveProfile(profile)
+    res.status(201).json(profile)
+  } catch (err) {
+    next(err)
+  }
+})
+
+// Create connection from URI (connection string)
+app.post('/api/connections/from-uri', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { uri } = req.body as { uri: string }
+
+    // Validate and parse the connection URI
+    const { type, options, name } = validateConnectionUri(uri)
+
+    // Check if adapter is available
+    if (!adapterRegistry.getFactory(type)) {
+      res.status(400).json({ error: `Adapter "${type}" is not available` })
+      return
+    }
+
+    const now = new Date()
+    const profile = {
+      id: randomUUID(),
+      name,
+      type,
+      options,
+      createdAt: now,
+      updatedAt: now
+    } as ConnectionProfile
+
+    // Save the profile
+    await saveProfile(profile)
+
+    // Immediately establish the connection
+    const manager = ConnectionManager.getInstance()
+    try {
+      await manager.createConnection(profile.id, type, options)
+    } catch (connectionError) {
+      // Roll back the saved profile if connection creation fails
+      await deleteProfile(profile.id)
+      throw connectionError
+    }
+
     res.status(201).json(profile)
   } catch (err) {
     next(err)
