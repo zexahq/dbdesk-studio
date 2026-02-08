@@ -1,4 +1,5 @@
 import type { SQLConnectionProfile } from '@common/types'
+import { dbdeskClient } from '@/api/client'
 import { useSchemasWithTables } from '@/api/queries/schema'
 import { UnsavedChangesDialog } from '@/components/sql/dialogs/unsaved-changes-dialog'
 import {
@@ -11,7 +12,7 @@ import { cn } from '@/lib/utils'
 import { useTabCloseHandler } from '@/hooks/use-tab-close-handler'
 import { useSqlWorkspaceStore } from '@/store/sql-workspace-store'
 import { useTabStore } from '@/store/tab-store'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { QueryView } from './query-view'
 import { TableView } from './table-view'
 import { TabNavigation } from './table-view/tab-navigation'
@@ -19,7 +20,11 @@ import { WorkspaceSidebar } from './workspace-sidebar'
 import { WorkspaceTopbar } from './workspace-topbar'
 
 export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
+  const currentConnectionId = useSqlWorkspaceStore((s) => s.currentConnectionId)
+  const setCurrentConnection = useSqlWorkspaceStore((s) => s.setCurrentConnection)
   const setSchemasWithTables = useSqlWorkspaceStore((s) => s.setSchemasWithTables)
+  const loadFromSerialized = useTabStore((s) => s.loadFromSerialized)
+  const reset = useTabStore((s) => s.reset)
   const activeTab = useTabStore((state) => {
     const { tabs, activeTabId } = state
     return tabs.find((t) => t.id === activeTabId)
@@ -27,8 +32,39 @@ export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const { requestCloseTab, dialogProps } = useTabCloseHandler(profile)
+  const hasInitialized = useRef(false)
 
   const { data: schemasWithTables } = useSchemasWithTables(profile.id)
+
+  // Sync connectionId from route to store and load workspace on mount/connection change
+  useEffect(() => {
+    if (currentConnectionId === profile.id) {
+      // Already synced, skip
+      return
+    }
+
+    // Prevent double initialization in strict mode
+    if (hasInitialized.current) return
+    hasInitialized.current = true
+
+    const initWorkspace = async () => {
+      setCurrentConnection(profile.id)
+
+      try {
+        const savedWorkspace = await dbdeskClient.loadWorkspace(profile.id)
+        if (savedWorkspace) {
+          loadFromSerialized(savedWorkspace.tabs, savedWorkspace.activeTabId)
+        } else {
+          reset()
+        }
+      } catch (error) {
+        console.warn('Failed to load workspace, using defaults:', error)
+        reset()
+      }
+    }
+
+    initWorkspace()
+  }, [profile.id, currentConnectionId, setCurrentConnection, loadFromSerialized, reset])
 
   useEffect(() => {
     if (schemasWithTables) {
