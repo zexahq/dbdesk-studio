@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { ConnectionList } from '@/components/connections/connection-list'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { dbdeskClient } from '@/api/client'
 
 interface SearchParams {
@@ -21,9 +21,15 @@ function ConnectionPage() {
   const navigate = useNavigate()
   const [isConnecting, setIsConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const hasAttempted = useRef(false)
 
   useEffect(() => {
-    if (uri && !isConnecting) {
+    if (!uri || isConnecting || hasAttempted.current) {
+      return
+    }
+
+    hasAttempted.current = true
+    if (uri) {
       setIsConnecting(true)
       setError(null)
 
