@@ -589,8 +589,14 @@ export const validateConnectionUri = (uri: unknown): ConnectionFromUriInput => {
   }
 
   // Extract user and password (can be empty for some configurations)
-  const user = decodeURIComponent(parsedUrl.username || '')
-  const password = decodeURIComponent(parsedUrl.password || '')
+  let user = ''
+  let password = ''
+  try {
+    user = decodeURIComponent(parsedUrl.username || '')
+    password = decodeURIComponent(parsedUrl.password || '')
+  } catch {
+    throw new ValidationError('Invalid URI encoding in username or password')
+  }
 
   // Validate SSL mode from query parameters
   const sslModeParam = parsedUrl.searchParams.get('sslmode') || parsedUrl.searchParams.get('ssl-mode')

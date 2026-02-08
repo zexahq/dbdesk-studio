@@ -129,7 +129,13 @@ app.post('/api/connections/from-uri', async (req: Request, res: Response, next: 
 
     // Immediately establish the connection
     const manager = ConnectionManager.getInstance()
-    await manager.createConnection(profile.id, type, options)
+    try {
+      await manager.createConnection(profile.id, type, options)
+    } catch (connectionError) {
+      // Roll back the saved profile if connection creation fails
+      await deleteProfile(profile.id)
+      throw connectionError
+    }
 
     res.status(201).json(profile)
   } catch (err) {

@@ -21,34 +21,38 @@ function ConnectionPage() {
   const navigate = useNavigate()
   const [isConnecting, setIsConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const hasAttempted = useRef(false)
+  const lastAttemptedUri = useRef<string | null>(null)
 
   useEffect(() => {
-    if (!uri || isConnecting || hasAttempted.current) {
+    if (!uri || isConnecting || lastAttemptedUri.current === uri) {
       return
     }
 
-    hasAttempted.current = true
-    if (uri) {
-      setIsConnecting(true)
-      setError(null)
+    lastAttemptedUri.current = uri
+    setIsConnecting(true)
+    setError(null)
 
-      dbdeskClient
-        .createConnectionFromUri(uri)
-        .then((profile) => {
-          // Navigate to the connection page
-          navigate({
-            to: '/connections/$connectionId',
-            params: { connectionId: profile.id },
-            replace: true,
-          })
+    dbdeskClient
+      .createConnectionFromUri(uri)
+      .then((profile) => {
+        // Navigate to the connection page (clears URI from address bar)
+        navigate({
+          to: '/connections/$connectionId',
+          params: { connectionId: profile.id },
+          replace: true,
         })
-        .catch((err) => {
-          console.error('Failed to connect from URI:', err)
-          setError(err instanceof Error ? err.message : 'Failed to connect')
-          setIsConnecting(false)
+      })
+      .catch((err) => {
+        console.error('Failed to connect from URI:', err)
+        setError(err instanceof Error ? err.message : 'Failed to connect')
+        setIsConnecting(false)
+        // Clear the URI from address bar to prevent credential leakage
+        navigate({
+          to: '/',
+          search: {},
+          replace: true,
         })
-    }
+      })
   }, [uri, navigate, isConnecting])
 
   if (isConnecting) {

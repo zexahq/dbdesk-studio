@@ -32,7 +32,7 @@ export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const { requestCloseTab, dialogProps } = useTabCloseHandler(profile)
-  const hasInitialized = useRef(false)
+  const lastInitializedConnectionId = useRef<string | null>(null)
 
   const { data: schemasWithTables } = useSchemasWithTables(profile.id)
 
@@ -44,8 +44,8 @@ export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
     }
 
     // Prevent double initialization in strict mode
-    if (hasInitialized.current) return
-    hasInitialized.current = true
+    if (lastInitializedConnectionId.current === profile.id) return
+    lastInitializedConnectionId.current = profile.id
 
     const initWorkspace = async () => {
       setCurrentConnection(profile.id)

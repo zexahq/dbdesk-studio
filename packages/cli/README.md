@@ -42,6 +42,11 @@ npx dbdesk-studio --uri "postgresql://user:password@localhost:5432/mydb?sslmode=
 
 This will start the studio and automatically open your browser connected to the specified database.
 
+> ⚠️ **Security Note:** Passing credentials directly in the command line may expose them in shell history and process listings. For sensitive environments, consider:
+> - Using environment variables: `--uri "$DATABASE_URL"`
+> - Omitting the password and entering it in the UI
+> - Using `.pgpass` or similar credential files for your database
+
 ## Features
 
 - 🗄️ Support for PostgreSQL, MySQL, and more

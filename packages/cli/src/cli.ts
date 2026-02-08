@@ -39,8 +39,13 @@ function parseArgs() {
       if (url) config.backendUrl = url
       i++
     } else if (args[i] === '--uri') {
-      const uri = args[i + 1]
-      if (uri) config.uri = uri
+      const next = args[i + 1]
+      if (!next || next.startsWith('-')) {
+        console.error('Error: --uri requires a value.')
+        printHelp()
+        process.exit(1)
+      }
+      config.uri = next
       i++
     } else {
       const arg = args[i]
@@ -220,17 +225,25 @@ async function main() {
       startFrontend(config)
     ])
 
-    // Build the URL with optional URI parameter
-    let appUrl = `http://localhost:${config.frontendPort}`
-    if (config.uri) {
-      appUrl += `?uri=${encodeURIComponent(config.uri)}`
-    }
+    const baseUrl = `http://localhost:${config.frontendPort}`
 
-    console.log(`dbdesk-studio running at ${appUrl}`)
-
-    // Open browser automatically if URI is provided
+    // If URI is provided, create connection via backend API first
     if (config.uri) {
-      openBrowser(appUrl)
+      console.log('dbdesk-studio running...')
+      console.log('Creating connection from URI...')
+      
+      try {
+        const connectionId = await createConnectionFromUri(config.uri, config.backendPort)
+        const appUrl = `${baseUrl}/connections/${connectionId}`
+        console.log(`Connection created! Opening ${baseUrl}/connections/<id>`)
+        openBrowser(appUrl)
+      } catch (err) {
+        console.error('Failed to create connection from URI:', err instanceof Error ? err.message : err)
+        console.log(`You can still access the studio at ${baseUrl}`)
+        openBrowser(baseUrl)
+      }
+    } else {
+      console.log(`dbdesk-studio running at ${baseUrl}`)
     }
   } catch (err) {
     console.error('❌ Failed to start services:', err)
@@ -238,19 +251,35 @@ async function main() {
   }
 }
 
-function openBrowser(url: string) {
-  const platform = process.platform
-  let command: string
+async function createConnectionFromUri(uri: string, backendPort: number): Promise<string> {
+  const response = await fetch(`http://localhost:${backendPort}/api/connections/from-uri`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ uri })
+  })
 
-  if (platform === 'darwin') {
-    command = 'open'
-  } else if (platform === 'win32') {
-    command = 'start'
-  } else {
-    command = 'xdg-open'
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
+    throw new Error(errorData.error || `HTTP ${response.status}`)
   }
 
-  spawn(command, [url], { stdio: 'ignore', detached: true }).unref()
+  const profile = await response.json() as { id: string }
+  return profile.id
+}
+
+function openBrowser(url: string) {
+  const platform = process.platform
+
+  if (platform === 'darwin') {
+    spawn('open', [url], { stdio: 'ignore', detached: true }).unref()
+  } else if (platform === 'win32') {
+    // 'start' is a cmd.exe builtin, not an executable
+    spawn('cmd.exe', ['/c', 'start', '""', url], { stdio: 'ignore', detached: true }).unref()
+  } else {
+    spawn('xdg-open', [url], { stdio: 'ignore', detached: true }).unref()
+  }
 }
 
 main()
