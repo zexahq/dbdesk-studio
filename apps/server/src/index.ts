@@ -18,7 +18,7 @@ import { connectionManager, ConnectionManager } from './connectionManager'
 import { deleteQuery, loadQueries, saveQuery, updateQuery } from './saved-queries-storage'
 import { deleteProfile, getProfile, loadProfiles, saveProfile } from './storage'
 import { ValidationError } from './utils/errors'
-import { getRouteParam } from './utils/validation'
+import { getRouteParam, validateConnectionUri } from './utils/validation'
 import { deleteWorkspace, loadWorkspace, saveWorkspace } from './workspace-storage'
 
 const app: Application = express()
@@ -105,76 +105,14 @@ app.post('/api/connections/from-uri', async (req: Request, res: Response, next: 
   try {
     const { uri } = req.body as { uri: string }
 
-    if (!uri) {
-      res.status(400).json({ error: 'Missing required field: uri' })
-      return
-    }
-
-    // Parse the connection URI
-    let parsedUrl: URL
-    try {
-      parsedUrl = new URL(uri)
-    } catch {
-      res.status(400).json({ error: 'Invalid URI format' })
-      return
-    }
-
-    const protocol = parsedUrl.protocol.replace(':', '')
-    let type: DatabaseType
-
-    // Determine database type from protocol
-    if (protocol === 'postgres' || protocol === 'postgresql') {
-      type = 'postgres'
-    } else if (protocol === 'mysql') {
-      type = 'mysql'
-    } else {
-      res.status(400).json({ 
-        error: `Unsupported protocol: ${protocol}. Supported protocols: postgresql://, postgres://, mysql://` 
-      })
-      return
-    }
-
-    // Extract connection details
-    const database = parsedUrl.pathname.replace('/', '')
-    if (!database) {
-      res.status(400).json({ error: 'Missing database name in URI' })
-      return
-    }
-
-    const host = parsedUrl.hostname
-    const port = parsedUrl.port 
-      ? parseInt(parsedUrl.port, 10) 
-      : (type === 'postgres' ? 5432 : 3306)
-    const user = decodeURIComponent(parsedUrl.username || '')
-    const password = decodeURIComponent(parsedUrl.password || '')
-
-    if (!host) {
-      res.status(400).json({ error: 'Missing host in URI' })
-      return
-    }
-
-    // Parse SSL mode from query parameters
-    const sslModeParam = parsedUrl.searchParams.get('sslmode') || parsedUrl.searchParams.get('ssl-mode')
-    const sslMode = sslModeParam || 'disable'
-
-    // Build connection options
-    const options = {
-      host,
-      port,
-      database,
-      user,
-      password,
-      sslMode
-    }
+    // Validate and parse the connection URI
+    const { type, options, name } = validateConnectionUri(uri)
 
     // Check if adapter is available
     if (!adapterRegistry.getFactory(type)) {
       res.status(400).json({ error: `Adapter "${type}" is not available` })
       return
     }
-
-    // Create connection name from database name
-    const name = `${database}@${host}`
 
     const now = new Date()
     const profile = {

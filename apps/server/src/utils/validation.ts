@@ -520,3 +520,111 @@ export const getRouteParam = (params: Record<string, string | string[] | undefin
   
   return value
 }
+
+export type ConnectionFromUriInput = {
+  type: DatabaseType
+  options: SQLConnectionOptions
+  name: string
+}
+
+/**
+ * Validates and parses a connection URI for PostgreSQL or MySQL databases.
+ * Supported formats:
+ * - postgresql://user:password@host:port/database?sslmode=require
+ * - postgres://user:password@host:port/database?sslmode=require
+ * - mysql://user:password@host:port/database?ssl-mode=require
+ */
+export const validateConnectionUri = (uri: unknown): ConnectionFromUriInput => {
+  if (typeof uri !== 'string' || uri.trim() === '') {
+    throw new ValidationError('Invalid value for "uri": expected non-empty string')
+  }
+
+  // Parse the connection URI
+  let parsedUrl: URL
+  try {
+    parsedUrl = new URL(uri)
+  } catch {
+    throw new ValidationError('Invalid URI format: could not parse as URL')
+  }
+
+  const protocol = parsedUrl.protocol.replace(':', '')
+  let type: DatabaseType
+  let defaultPort: number
+
+  // Determine database type from protocol
+  if (protocol === 'postgres' || protocol === 'postgresql') {
+    type = 'postgres'
+    defaultPort = 5432
+  } else if (protocol === 'mysql') {
+    type = 'mysql'
+    defaultPort = 3306
+  } else {
+    throw new ValidationError(
+      `Unsupported protocol: ${protocol}. Supported protocols: postgresql://, postgres://, mysql://`
+    )
+  }
+
+  // Validate host
+  const host = parsedUrl.hostname
+  if (!host || host.trim() === '') {
+    throw new ValidationError('Missing host in URI')
+  }
+
+  // Validate and parse port
+  let port: number
+  if (parsedUrl.port) {
+    const portValue = Number.parseInt(parsedUrl.port, 10)
+    if (!Number.isInteger(portValue) || portValue <= 0 || portValue > 65535) {
+      throw new ValidationError('Invalid port in URI: expected integer between 1 and 65535')
+    }
+    port = portValue
+  } else {
+    port = defaultPort
+  }
+
+  // Validate database name
+  const database = parsedUrl.pathname.replace(/^\//, '')
+  if (!database || database.trim() === '') {
+    throw new ValidationError('Missing database name in URI')
+  }
+
+  // Extract user and password (can be empty for some configurations)
+  const user = decodeURIComponent(parsedUrl.username || '')
+  const password = decodeURIComponent(parsedUrl.password || '')
+
+  // Validate SSL mode from query parameters
+  const sslModeParam = parsedUrl.searchParams.get('sslmode') || parsedUrl.searchParams.get('ssl-mode')
+  let sslMode: PostgreSQLSslMode | undefined
+  
+  if (sslModeParam) {
+    const validModes: PostgreSQLSslMode[] = [
+      'disable',
+      'allow',
+      'prefer',
+      'require',
+      'verify-ca',
+      'verify-full'
+    ]
+    if (!validModes.includes(sslModeParam as PostgreSQLSslMode)) {
+      throw new ValidationError(
+        `Invalid value for "sslmode": expected one of ${validModes.join(', ')}`
+      )
+    }
+    sslMode = sslModeParam as PostgreSQLSslMode
+  }
+
+  // Build connection options
+  const options: SQLConnectionOptions = {
+    host,
+    port,
+    database,
+    user,
+    password,
+    sslMode
+  }
+
+  // Create connection name from database and host
+  const name = `${database}@${host}`
+
+  return { type, options, name }
+}
