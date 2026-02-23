@@ -20,6 +20,7 @@ import { Database, Moon, Search, Sun, Table2Icon, Unplug } from 'lucide-react'
 import * as React from 'react'
 import { useEffect, useState } from 'react'
 import { Button } from './ui/button'
+import { isEmbedded } from '@/lib/embedded'
 
 export function QuickPanel() {
   const [open, setOpen] = useState(false)
@@ -135,7 +136,7 @@ export function QuickPanel() {
               {schemasWithTables.length > 0 && <CommandSeparator />}
             </>
           )}
-          {currentConnectionId && (
+          {currentConnectionId && !isEmbedded && (
             <CommandGroup heading="Connection Actions" className="py-2">
               <CommandItem onSelect={handleDisconnect} className="py-2!">
                 <Unplug className="size-4 mr-2" />
@@ -143,16 +144,18 @@ export function QuickPanel() {
               </CommandItem>
             </CommandGroup>
           )}
-          <CommandGroup heading="General Settings" className="py-2">
-            <CommandItem onSelect={handleThemeToggle} className="py-2!">
-              {theme === 'light' ? (
-                <Moon className="size-4 mr-2" />
-              ) : (
-                <Sun className="size-4 mr-2" />
-              )}
-              <span className="text-sm">Toggle Theme</span>
-            </CommandItem>
-          </CommandGroup>
+          {!isEmbedded && (
+            <CommandGroup heading="General Settings" className="py-2">
+              <CommandItem onSelect={handleThemeToggle} className="py-2!">
+                {theme === 'light' ? (
+                  <Moon className="size-4 mr-2" />
+                ) : (
+                  <Sun className="size-4 mr-2" />
+                )}
+                <span className="text-sm">Toggle Theme</span>
+              </CommandItem>
+            </CommandGroup>
+          )}
           {schemasWithTables.length > 0 && (
             <>
               <CommandGroup heading="Entities" className="py-2">

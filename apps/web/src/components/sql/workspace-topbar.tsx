@@ -18,6 +18,7 @@ import { useRouter } from '@tanstack/react-router'
 import { PanelLeftClose, PanelLeftOpen, Plus, Unplug } from 'lucide-react'
 import { useCallback, useMemo } from 'react'
 import { SortableTabButton } from './sortable-tab-button'
+import { isEmbedded } from '@/lib/embedded'
 
 interface WorkspaceTopbarProps {
   profile: SQLConnectionProfile
@@ -132,16 +133,18 @@ export function WorkspaceTopbar({
           </DndContext>
         </div>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-full w-10 cursor-pointer rounded-none border-l border-border/50 shrink-0 hover:bg-destructive/10 hover:text-destructive"
-          onClick={() => void handleDisconnect()}
-          disabled={isDisconnecting}
-        >
-          <Unplug className="size-4" />
-          <span className="sr-only">Disconnect</span>
-        </Button>
+        {!isEmbedded && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-full w-10 cursor-pointer rounded-none border-l border-border/50 shrink-0 hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => void handleDisconnect()}
+            disabled={isDisconnecting}
+          >
+            <Unplug className="size-4" />
+            <span className="sr-only">Disconnect</span>
+          </Button>
+        )}
       </div>
     </>
   )

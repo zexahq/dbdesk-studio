@@ -68,18 +68,6 @@ function ConnectionPage() {
     )
   }
 
-  if (error) {
-    return (
-      <div className="p-6">
-        <div className="mb-4 rounded-lg border border-destructive bg-destructive/10 p-4">
-          <div className="font-medium text-destructive">Connection Failed</div>
-          <div className="mt-1 text-sm text-muted-foreground">{error}</div>
-        </div>
-        <ConnectionList />
-      </div>
-    )
-  }
-
   return (
     <div className="p-6">
       <ConnectionList />

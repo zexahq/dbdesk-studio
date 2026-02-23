@@ -114,6 +114,40 @@ app.post('/api/connections/from-uri', async (req: Request, res: Response, next: 
       return
     }
 
+    // Check for an existing profile with matching connection details
+    const existingProfiles = await loadProfiles()
+    const existingProfile = existingProfiles.find((p) => {
+      if (p.type !== type) return false
+      const opts = p.options as typeof options
+      return (
+        opts.host === options.host &&
+        opts.port === options.port &&
+        opts.database === options.database &&
+        opts.user === options.user
+      )
+    })
+
+    if (existingProfile) {
+      // Update password if it changed, and refresh updatedAt
+      const existingOpts = existingProfile.options as typeof options
+      if (existingOpts.password !== options.password) {
+        existingOpts.password = options.password
+        existingProfile.updatedAt = new Date()
+        await saveProfile(existingProfile)
+      }
+
+      // Re-establish the connection
+      const manager = ConnectionManager.getInstance()
+      try {
+        await manager.createConnection(existingProfile.id, type, existingOpts)
+      } catch {
+        // Connection failed, but profile is valid — still return it
+      }
+
+      res.status(200).json(existingProfile)
+      return
+    }
+
     const now = new Date()
     const profile = {
       id: randomUUID(),

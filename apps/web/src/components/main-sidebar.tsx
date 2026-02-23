@@ -3,6 +3,7 @@ import { Home } from 'lucide-react'
 import { QuickPanel } from './quick-panel'
 import { ThemeToggle } from './theme-toggle'
 import { Button } from './ui/button'
+import { isEmbedded } from '@/lib/embedded'
 
 export function MainSidebar() {
   const location = useLocation()
@@ -22,7 +23,7 @@ export function MainSidebar() {
           <QuickPanel />
         </div>
         <div className="flex flex-col gap-2 items-center">
-          <ThemeToggle />
+          {!isEmbedded && <ThemeToggle />}
         </div>
       </div>
     </div>
