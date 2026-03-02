@@ -136,7 +136,7 @@ export function QuickPanel() {
               {schemasWithTables.length > 0 && <CommandSeparator />}
             </>
           )}
-          {currentConnectionId && !isEmbedded && (
+          {currentConnectionId && (
             <CommandGroup heading="Connection Actions" className="py-2">
               <CommandItem onSelect={handleDisconnect} className="py-2!">
                 <Unplug className="size-4 mr-2" />
