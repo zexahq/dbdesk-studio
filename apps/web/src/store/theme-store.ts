@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { isEmbedded } from '@/lib/embedded'
+import { setupEmbeddedThemeListener } from '@/lib/embedded'
 
 type Theme = 'light' | 'dark'
 
@@ -61,15 +61,4 @@ export const useThemeStore = create<ThemeStore>((set) => ({
 }))
 
 // When embedded in an iframe, listen for theme sync messages from the parent
-if (isEmbedded) {
-  window.addEventListener('message', (event) => {
-    if (
-      event.data &&
-      typeof event.data === 'object' &&
-      event.data.type === 'dbdesk-set-theme' &&
-      (event.data.theme === 'light' || event.data.theme === 'dark')
-    ) {
-      useThemeStore.getState().setTheme(event.data.theme)
-    }
-  })
-}
+setupEmbeddedThemeListener(useThemeStore.getState().setTheme)

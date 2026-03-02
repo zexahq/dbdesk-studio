@@ -2,6 +2,7 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import ReactDOM from "react-dom/client";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/query-client";
+import { setupEmbeddedConnectListener } from "./lib/embedded";
 
 import { routeTree } from "./routeTree.gen";
 
@@ -10,6 +11,10 @@ const router = createRouter({
   defaultPreload: "intent",
   context: {},
 });
+
+// Register the embedded-connect postMessage listener so the parent
+// frame (e.g. autobase console) can auto-create a connection.
+setupEmbeddedConnectListener();
 
 declare module "@tanstack/react-router" {
   interface Register {
