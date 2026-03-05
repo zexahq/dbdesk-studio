@@ -19,10 +19,12 @@
  * | `components/quick-panel.tsx`                  | Hides "Toggle Theme" command                            |
  * | `store/theme-store.ts`                        | Calls `setupEmbeddedThemeListener` to sync parent theme |
  * | `lib/embedded.ts` (this file)                  | `setupEmbeddedThemeListener` — syncs theme from parent  |
+ * | `main.tsx`                                     | Calls `setupEmbeddedConnectListener` at startup         |
  *
  * When embedded:
  * - The theme toggle are hidden (checked via `isEmbedded`)
  * - Theme is synced from the parent via postMessage
+ * - Parent can send `dbdesk-connect` to auto-create and connect to a database
  */
 
 // ---------------------------------------------------------------------------
@@ -66,4 +68,116 @@ export function setupEmbeddedThemeListener(
       setTheme(event.data.theme)
     }
   })
+}
+
+// ---------------------------------------------------------------------------
+// Embedded connect listener
+// ---------------------------------------------------------------------------
+
+/**
+ * Listen for `dbdesk-connect` postMessage events from the parent frame.
+ *
+ * When received the listener will:
+ *  1. Create a new connection profile via the HTTP API
+ *  2. Connect to it
+ *  3. Navigate the app to the connection's SQL workspace
+ *  4. Reply with `{ type: "dbdesk-connected", connectionId }` on success
+ *     or `{ type: "dbdesk-connect-error", error }` on failure
+ *
+ * Also sends `{ type: "dbdesk-ready" }` to the parent once the listener
+ * is registered so the parent knows it can start sending messages.
+ *
+ * Expected payload from parent:
+ * ```
+ * {
+ *   type: "dbdesk-connect",
+ *   connection: {
+ *     host: string,
+ *     port: number,
+ *     database: string,
+ *     user: string,
+ *     password: string,
+ *     type?: "postgres" | "mysql"   // defaults to "postgres"
+ *     name?: string                  // display name, defaults to "database@host"
+ *   }
+ * }
+ * ```
+ *
+ * Call once at app startup. No-op when not embedded.
+ */
+export function setupEmbeddedConnectListener(): void {
+  if (!isEmbedded) return
+
+  console.log('[dbdesk-connect] isEmbedded:', isEmbedded)
+
+  window.addEventListener('message', async (event) => {
+    if (
+      !event.data ||
+      typeof event.data !== 'object' ||
+      event.data.type !== 'dbdesk-connect'
+    ) {
+      return
+    }
+
+    const conn = event.data.connection
+    if (!conn || typeof conn !== 'object') return
+
+    const {
+      host,
+      port,
+      database,
+      user,
+      password,
+      type = 'postgres',
+      name,
+    } = conn as {
+      host: string
+      port: number
+      database: string
+      user: string
+      password: string
+      type?: 'postgres' | 'mysql'
+      name?: string
+    }
+
+    const displayName = name || `${database}@${host}`
+
+    try {
+      // Lazy import to avoid circular deps at module level
+      const { dbdeskClient } = await import('@/api/client')
+
+      // Create the connection profile
+      const profile = await dbdeskClient.createConnection(displayName, type, {
+        host,
+        port: Number(port),
+        database,
+        user,
+        password,
+      })
+
+      // Connect to it
+      await dbdeskClient.connect(profile.id)
+
+      // Navigate to the SQL workspace
+      window.location.hash = `/connections/${profile.id}`
+
+      // Notify parent of success
+      window.parent.postMessage(
+        { type: 'dbdesk-connected', connectionId: profile.id },
+        '*',
+      )
+    } catch (err) {
+      console.error('[dbdesk-connect] Failed to create/connect:', err)
+      window.parent.postMessage(
+        {
+          type: 'dbdesk-connect-error',
+          error: err instanceof Error ? err.message : String(err),
+        },
+        '*',
+      )
+    }
+  })
+
+  // Tell the parent we're ready to receive messages
+  window.parent.postMessage({ type: 'dbdesk-ready' }, '*')
 }
