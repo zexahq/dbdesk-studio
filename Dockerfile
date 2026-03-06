@@ -15,7 +15,8 @@ RUN pnpm install --frozen-lockfile \
 FROM node:22-bookworm-slim
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends nginx curl \
+RUN apt-get -o Acquire::Check-Valid-Until=false update \
+    && apt-get install -y --no-install-recommends nginx curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy server build (fully bundled, no node_modules needed)
