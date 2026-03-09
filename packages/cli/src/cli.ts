@@ -164,8 +164,29 @@ const path = require('path');
 
 const distPath = '${webDistPath}';
 const port = ${config.frontendPort};
+const backendUrl = new URL('${config.backendUrl}');
 
 const server = http.createServer((req, res) => {
+  if (req.url && (req.url.startsWith('/api/') || req.url === '/health')) {
+    const options = {
+      hostname: backendUrl.hostname,
+      port: backendUrl.port || 80,
+      path: req.url,
+      method: req.method,
+      headers: { ...req.headers, host: backendUrl.host },
+    };
+    const proxy = http.request(options, (proxyRes) => {
+      res.writeHead(proxyRes.statusCode, proxyRes.headers);
+      proxyRes.pipe(res, { end: true });
+    });
+    proxy.on('error', (err) => {
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Backend unavailable: ' + err.message }));
+    });
+    req.pipe(proxy, { end: true });
+    return;
+  }
+
   let filePath = path.join(distPath, req.url === '/' ? 'index.html' : req.url);
   const extname = path.extname(filePath);
   
