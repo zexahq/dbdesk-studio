@@ -48,6 +48,20 @@ app.get('/health', (_req: Request, res: Response) => {
 })
 
 // ============================================================================
+// Config API
+// ============================================================================
+
+app.get('/api/config', (_req: Request, res: Response) => {
+  const allowedRaw = process.env.ALLOWED_DB_TYPES || ''
+  const allowedDbTypes = allowedRaw
+    ? allowedRaw.split(',').map((s) => s.trim()).filter(Boolean)
+    : []
+  const defaultSslMode = process.env.DEFAULT_SSL_MODE || ''
+
+  res.json({ allowedDbTypes, defaultSslMode })
+})
+
+// ============================================================================
 // Adapters API
 // ============================================================================
 

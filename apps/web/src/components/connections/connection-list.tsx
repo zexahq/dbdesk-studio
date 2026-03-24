@@ -1,5 +1,6 @@
 import type { ConnectionProfile, DatabaseType } from '@common/types'
 import { useConnections } from '@/api/queries/connections'
+import { useConfig } from '@/api/queries/config'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ChevronDown } from 'lucide-react'
@@ -7,13 +8,24 @@ import { useEffect, useRef, useState } from 'react'
 import { ConnectionCard } from './connection-card'
 import { ConnectionDialog } from './connection-dialog'
 
+const ALL_DB_TYPES: { type: DatabaseType; label: string }[] = [
+  { type: 'postgres', label: 'PostgreSQL' },
+  { type: 'mysql', label: 'MySQL' },
+]
+
 export function ConnectionList() {
   const { data: connections, isLoading, isError, error } = useConnections()
+  const { data: config } = useConfig()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingConnection, setEditingConnection] = useState<ConnectionProfile | null>(null)
   const [selectedDatabaseType, setSelectedDatabaseType] = useState<DatabaseType | null>(null)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  const allowedTypes =
+    config?.allowedDbTypes && config.allowedDbTypes.length > 0
+      ? ALL_DB_TYPES.filter((t) => config.allowedDbTypes.includes(t.type))
+      : ALL_DB_TYPES
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -65,29 +77,32 @@ export function ConnectionList() {
             </p>
           </div>
           <div className="relative" ref={dropdownRef}>
-            <Button className="cursor-pointer" onClick={() => setIsDropdownOpen(!isDropdownOpen)}>
-              New Connection
-              <ChevronDown className="size-4" />
-            </Button>
-            {isDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-48 rounded-md border bg-popover shadow-md z-50">
-                <div className="p-1">
-                  <button
-                    className="w-full text-left px-3 py-2 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground transition-colors"
-                    onClick={() => handleNewConnection('postgres')}
-                  >
-                    PostgreSQL
-                  </button>
-                  <button
-                    className="w-full text-left px-3 py-2 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    onClick={() => {
-                      handleNewConnection('mysql')
-                    }}
-                  >
-                    MySQL
-                  </button>
-                </div>
-              </div>
+            {allowedTypes.length === 1 ? (
+              <Button className="cursor-pointer" onClick={() => handleNewConnection(allowedTypes[0].type)}>
+                New Connection
+              </Button>
+            ) : (
+              <>
+                <Button className="cursor-pointer" onClick={() => setIsDropdownOpen(!isDropdownOpen)}>
+                  New Connection
+                  <ChevronDown className="size-4" />
+                </Button>
+                {isDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-48 rounded-md border bg-popover shadow-md z-50">
+                    <div className="p-1">
+                      {allowedTypes.map((t) => (
+                        <button
+                          key={t.type}
+                          className="w-full text-left px-3 py-2 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+                          onClick={() => handleNewConnection(t.type)}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

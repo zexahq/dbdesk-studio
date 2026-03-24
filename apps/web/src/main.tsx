@@ -6,8 +6,13 @@ import { setupEmbeddedConnectListener } from "./lib/embedded";
 
 import { routeTree } from "./routeTree.gen";
 
+// Support being served under a sub-path (e.g. /dbdesk/ in autobase console).
+// The global is set in index.html and overridden by nginx sub_filter at runtime.
+const basepath = (window as any).__DBDESK_BASE_PATH__ || '/';
+
 const router = createRouter({
   routeTree,
+  basepath,
   defaultPreload: "intent",
   context: {},
 });

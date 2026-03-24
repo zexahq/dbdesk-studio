@@ -1,6 +1,7 @@
 import type { ConnectionProfile, DBConnectionOptions } from '@common/types'
 import type { PostgreSQLSslMode } from '@common/types/sql'
 import { useCreateConnection, useUpdateConnection } from '@/api/queries/connections'
+import { useConfig } from '@/api/queries/config'
 import { Button } from '@/components/ui/button'
 import { FieldError, FieldGroup, FieldLabel, Field as UIField } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
@@ -15,6 +16,7 @@ import { Separator } from '@/components/ui/separator'
 import { useForm } from '@tanstack/react-form'
 import { Eye, EyeOff } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { toast } from 'sonner'
 import * as z from 'zod'
 import { PostgresQuickConnect } from './postgres-quick-connect'
 
@@ -32,7 +34,7 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>
 
-function toDefaults(connection?: ConnectionProfile | null): FormValues {
+function toDefaults(connection?: ConnectionProfile | null, defaultSslMode?: string): FormValues {
   if (!connection) {
     return {
       name: '',
@@ -41,7 +43,7 @@ function toDefaults(connection?: ConnectionProfile | null): FormValues {
       database: '',
       user: '',
       password: '',
-      sslMode: 'disable'
+      sslMode: (defaultSslMode as PostgreSQLSslMode) || 'disable'
     }
   }
 
@@ -73,8 +75,12 @@ export interface PostgresConnectionFormProps {
 export function PostgresConnectionForm({ connection, onSuccess }: PostgresConnectionFormProps) {
   const createMutation = useCreateConnection()
   const updateMutation = useUpdateConnection()
+  const { data: config } = useConfig()
 
-  const defaults = useMemo(() => toDefaults(connection), [connection])
+  const defaults = useMemo(
+    () => toDefaults(connection, config?.defaultSslMode),
+    [connection, config?.defaultSslMode]
+  )
 
   const [showPassword, setShowPassword] = useState(false)
 
@@ -101,23 +107,27 @@ export function PostgresConnectionForm({ connection, onSuccess }: PostgresConnec
         sslMode
       }
 
-      let profile: ConnectionProfile
-      if (connection) {
-        profile = await updateMutation.mutateAsync({
-          connectionId: connection.id,
-          name,
-          type: 'postgres',
-          options
-        })
-      } else {
-        profile = await createMutation.mutateAsync({
-          name,
-          type: 'postgres',
-          options
-        })
-      }
+      try {
+        let profile: ConnectionProfile
+        if (connection) {
+          profile = await updateMutation.mutateAsync({
+            connectionId: connection.id,
+            name,
+            type: 'postgres',
+            options
+          })
+        } else {
+          profile = await createMutation.mutateAsync({
+            name,
+            type: 'postgres',
+            options
+          })
+        }
 
-      onSuccess(profile)
+        onSuccess(profile)
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to save connection')
+      }
     }
   })
 
