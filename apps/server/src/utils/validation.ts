@@ -104,7 +104,6 @@ export const validateConnectionOptions = (
 ): DBConnectionOptions => {
   switch (type) {
     case 'postgres':
-    case 'mysql':
       return validateSQLConnectionOptions(options)
     default:
       throw new ValidationError(`Unsupported database type "${type}"`)
@@ -401,7 +400,7 @@ const toNonEmptyString = (value: unknown, field: string): string => {
 }
 
 const toDatabaseType = (value: unknown): DatabaseType => {
-  if (value === 'postgres' || value === 'mysql' || value === 'mongodb' || value === 'redis') {
+  if (value === 'postgres' || value === 'mongodb' || value === 'redis') {
     return value
   }
 
@@ -528,11 +527,10 @@ export type ConnectionFromUriInput = {
 }
 
 /**
- * Validates and parses a connection URI for PostgreSQL or MySQL databases.
+ * Validates and parses a connection URI for PostgreSQL databases.
  * Supported formats:
  * - postgresql://user:password@host:port/database?sslmode=require
  * - postgres://user:password@host:port/database?sslmode=require
- * - mysql://user:password@host:port/database?ssl-mode=require
  */
 export const validateConnectionUri = (uri: unknown): ConnectionFromUriInput => {
   if (typeof uri !== 'string' || uri.trim() === '') {
@@ -555,12 +553,9 @@ export const validateConnectionUri = (uri: unknown): ConnectionFromUriInput => {
   if (protocol === 'postgres' || protocol === 'postgresql') {
     type = 'postgres'
     defaultPort = 5432
-  } else if (protocol === 'mysql') {
-    type = 'mysql'
-    defaultPort = 3306
   } else {
     throw new ValidationError(
-      `Unsupported protocol: ${protocol}. Supported protocols: postgresql://, postgres://, mysql://`
+      `Unsupported protocol: ${protocol}. Supported protocols: postgresql://, postgres://`
     )
   }
 

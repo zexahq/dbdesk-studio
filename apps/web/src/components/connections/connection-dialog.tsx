@@ -1,23 +1,18 @@
-import type { ConnectionProfile, DatabaseType } from '@common/types'
+import type { ConnectionProfile } from '@common/types'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog'
-import { MySQLConnectionForm } from './connection-forms/mysql/mysql-connection-form'
 import { PostgresConnectionForm } from './connection-forms/postgres/postgres-connection-form'
 
 interface ConnectionDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   connection?: ConnectionProfile | null
-  databaseType?: DatabaseType
 }
 
 export function ConnectionDialog({
   open,
   onOpenChange,
   connection,
-  databaseType
 }: ConnectionDialogProps) {
-  const type = connection?.type || databaseType
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg w-2xl max-w-none!">
@@ -29,13 +24,7 @@ export function ConnectionDialog({
               : 'Create a new database connection profile.'}
           </DialogDescription>
         </DialogHeader>
-        {!type && <div className="flex flex-col gap-2">Select a database type to continue.</div>}
-        {type === 'postgres' && (
-          <PostgresConnectionForm connection={connection} onSuccess={() => onOpenChange(false)} />
-        )}
-        {type === 'mysql' && (
-          <MySQLConnectionForm connection={connection} onSuccess={() => onOpenChange(false)} />
-        )}
+        <PostgresConnectionForm connection={connection} onSuccess={() => onOpenChange(false)} />
       </DialogContent>
     </Dialog>
   )

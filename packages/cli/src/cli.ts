@@ -67,7 +67,7 @@ function printHelp() {
 
   Options:
     --uri <connection-string>  Database connection URI (opens directly to connection)
-                               Supports: postgresql://, postgres://, mysql://
+                               Supports: postgresql://, postgres://
     --backend-port <port>      Backend server port (default: 6789)
     --frontend-port <port>     Frontend server port (default: 9876)
     --backend-url <url>        Backend URL for frontend (default: http://localhost:6789)
@@ -76,7 +76,6 @@ function printHelp() {
   Examples:
     dbdesk-studio
     dbdesk-studio --uri "postgresql://user:pass@localhost:5432/mydb"
-    dbdesk-studio --uri="mysql://user:pass@localhost:3306/mydb"
     dbdesk-studio --backend-port 4000 --frontend-port 8080
     dbdesk-studio --backend-url http://api.example.com
   `)

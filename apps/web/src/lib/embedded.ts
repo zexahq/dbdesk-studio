@@ -97,7 +97,7 @@ export function setupEmbeddedThemeListener(
  *     database: string,
  *     user: string,
  *     password: string,
- *     type?: "postgres" | "mysql"   // defaults to "postgres"
+ *     type?: "postgres"              // defaults to "postgres"
  *     name?: string                  // display name, defaults to "database@host"
  *   }
  * }
@@ -136,7 +136,7 @@ export function setupEmbeddedConnectListener(): void {
       database: string
       user: string
       password: string
-      type?: 'postgres' | 'mysql'
+      type?: 'postgres'
       name?: string
     }
 

@@ -24,7 +24,7 @@ function getDbdesk() {
 }
 
 export const dbdeskClient = {
-  async getConfig(): Promise<{ allowedDbTypes: string[]; defaultSslMode: string }> {
+  async getConfig(): Promise<{ defaultSslMode: string }> {
     return getDbdesk().getConfig()
   },
 

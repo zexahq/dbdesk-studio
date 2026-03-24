@@ -47,8 +47,8 @@ import type {
   }
   
   export const httpClient = {
-    async getConfig(): Promise<{ allowedDbTypes: string[]; defaultSslMode: string }> {
-      return request<{ allowedDbTypes: string[]; defaultSslMode: string }>('/api/config')
+    async getConfig(): Promise<{ defaultSslMode: string }> {
+      return request<{ defaultSslMode: string }>('/api/config')
     },
 
     async getAdapters(): Promise<DatabaseType[]> {

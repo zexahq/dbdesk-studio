@@ -5,7 +5,7 @@ import type { BaseAdapter } from './adapter';
  */
 export type PostgreSQLSslMode = 'disable' | 'allow' | 'prefer' | 'require' | 'verify-ca' | 'verify-full';
 /**
- * SQL database connection options (PostgreSQL, MySQL)
+ * SQL database connection options (PostgreSQL)
  */
 export interface SQLConnectionOptions {
     host: string;
@@ -180,7 +180,7 @@ export interface SchemaWithTables {
     tables: string[];
 }
 /**
- * SQL adapter interface (PostgreSQL, MySQL)
+ * SQL adapter interface (PostgreSQL)
  */
 export interface SQLAdapter extends BaseAdapter {
     /**

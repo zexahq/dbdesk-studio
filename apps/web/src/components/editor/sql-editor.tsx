@@ -21,7 +21,7 @@ export default function SqlEditor({ value, onChange, language, onExecute }: SqlE
   const [height, setHeight] = useState('400px')
 
   const editorTheme = theme === 'dark' ? 'vs-dark' : 'vs'
-  const languageId = language === 'mysql' ? 'mysql' : 'pgsql'
+  const languageId = 'pgsql'
 
   // Keep onExecute ref updated
   useEffect(() => {
