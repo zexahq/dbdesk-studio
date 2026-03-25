@@ -19,7 +19,16 @@ import type {
     UpdateTableCellResult
   } from '@common/types'
   
-  const baseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
+  // When served under a sub-path (e.g. /dbdesk/ in autobase console),
+  // __DBDESK_BASE_PATH__ is set at runtime by nginx sub_filter.
+  // Fall back to VITE_API_BASE_URL for standalone / dev usage.
+  function getBaseUrl(): string {
+    const basePath = (window as any).__DBDESK_BASE_PATH__
+    if (basePath) return basePath
+    return import.meta.env.VITE_API_BASE_URL ?? ''
+  }
+
+  const baseUrl = getBaseUrl()
   
   async function request<T>(path: string, options: RequestInit = {}) {
     const url = `${baseUrl}${path}`
