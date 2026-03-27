@@ -27,12 +27,9 @@ type FilterRow = {
   value: string
 }
 
+let filterRowCounter = 0
 const createRowId = (): string => {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID()
-  }
-
-  return Math.random().toString(36).slice(2)
+  return `filter-row-${++filterRowCounter}`
 }
 
 const serializeFilterValue = (filter: TableFilterCondition): string => {

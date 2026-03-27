@@ -685,12 +685,7 @@ app.post(
       const connectionId = getRouteParam(req.params, 'connectionId')
       const schema = getRouteParam(req.params, 'schema')
       const table = getRouteParam(req.params, 'table')
-      const { options } = req.body as { options?: { sortRules?: TableSortRule[]; filters?: TableFilterCondition[] } }
-
-      if (!options) {
-        res.status(400).json({ error: 'Missing required field: options' })
-        return
-      }
+      const { options = {} } = req.body as { options?: { sortRules?: TableSortRule[]; filters?: TableFilterCondition[] } }
 
       const exportOptions: ExportTableOptions = { schema, table, ...options }
 
@@ -715,12 +710,7 @@ app.post(
       const connectionId = getRouteParam(req.params, 'connectionId')
       const schema = getRouteParam(req.params, 'schema')
       const table = getRouteParam(req.params, 'table')
-      const { options } = req.body as { options?: { sortRules?: TableSortRule[]; filters?: TableFilterCondition[] } }
-
-      if (!options) {
-        res.status(400).json({ error: 'Missing required field: options' })
-        return
-      }
+      const { options = {} } = req.body as { options?: { sortRules?: TableSortRule[]; filters?: TableFilterCondition[] } }
 
       const exportOptions: ExportTableOptions = { schema, table, ...options }
       const manager = ConnectionManager.getInstance()

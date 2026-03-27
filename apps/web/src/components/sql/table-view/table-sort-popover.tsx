@@ -38,12 +38,9 @@ type SortRow = {
 
 const DEFAULT_DIRECTION: TableSortRule['direction'] = 'ASC'
 
+let sortRowCounter = 0
 const createRowId = (): string => {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID()
-  }
-
-  return Math.random().toString(36).slice(2)
+  return `sort-row-${++sortRowCounter}`
 }
 
 const mapSortsToRows = (sorts: TableSortRule[] | undefined): SortRow[] => {
