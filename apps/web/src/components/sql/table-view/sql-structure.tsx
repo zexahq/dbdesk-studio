@@ -129,11 +129,6 @@ export const SqlStructure = ({ connectionId, schema, table }: SqlStructureProps)
             <CardTitle className="text-lg">Columns</CardTitle>
             <CardDescription>{structureInfo.columns.length} columns defined</CardDescription>
           </div>
-          <CardAction>
-            <Button size="sm" variant="outline" disabled>
-              Add column
-            </Button>
-          </CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 py-6">
           {structureInfo.columns.map((column) => (
@@ -169,11 +164,6 @@ export const SqlStructure = ({ connectionId, schema, table }: SqlStructureProps)
                 : 'No constraints defined'}
             </CardDescription>
           </div>
-          <CardAction>
-            <Button size="sm" variant="outline" disabled>
-              Add constraint
-            </Button>
-          </CardAction>
         </CardHeader>
         <CardContent className="flex flex-col py-6">
           {structureInfo.constraints?.length ? (
@@ -224,11 +214,6 @@ export const SqlStructure = ({ connectionId, schema, table }: SqlStructureProps)
                 : 'No indexes defined'}
             </CardDescription>
           </div>
-          <CardAction>
-            <Button size="sm" variant="outline" disabled>
-              Add index
-            </Button>
-          </CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 py-6">
           {structureInfo.indexes?.length ? (
