@@ -8,6 +8,14 @@ import type {
 } from '@common/types'
 import { create } from 'zustand'
 
+function generateUUID(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const h = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
+}
+
 export interface BaseTab {
   id: string
   kind: 'table' | 'query'
@@ -80,7 +88,7 @@ const createDefaultTableTab = (schema: string, table: string, isTemporary = true
 })
 
 const createDefaultQueryTab = (): QueryTab => ({
-  id: crypto.randomUUID(),
+  id: generateUUID(),
   kind: 'query',
   name: 'Untitled Query',
   editorContent: '',

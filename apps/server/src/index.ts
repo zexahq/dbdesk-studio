@@ -10,7 +10,6 @@ import type {
   TableSortRule,
   UpdateTableCellOptions
 } from '@common/types'
-import { randomUUID } from 'crypto'
 import cors from 'cors'
 import express, { type Application, type NextFunction, type Request, type Response } from 'express'
 import { adapterRegistry, listRegisteredAdapters } from './adapters'
@@ -20,6 +19,14 @@ import { deleteProfile, getProfile, loadProfiles, saveProfile } from './storage'
 import { ValidationError } from './utils/errors'
 import { getRouteParam, validateConnectionUri } from './utils/validation'
 import { deleteWorkspace, loadWorkspace, saveWorkspace } from './workspace-storage'
+
+function generateUUID(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const h = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
+}
 
 const app: Application = express()
 
@@ -95,7 +102,7 @@ app.post('/api/connections', async (req: Request, res: Response, next: NextFunct
 
     const now = new Date()
     const profile = {
-      id: randomUUID(),
+      id: generateUUID(),
       name,
       type,
       options,
@@ -160,7 +167,7 @@ app.post('/api/connections/from-uri', async (req: Request, res: Response, next: 
 
     const now = new Date()
     const profile = {
-      id: randomUUID(),
+      id: generateUUID(),
       name,
       type,
       options,

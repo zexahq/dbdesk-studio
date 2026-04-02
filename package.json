@@ -1,6 +1,6 @@
 {
   "name": "dbdesk-studio",
-  "version": "0.0.1",
+  "version": "0.1.5",
   "description": "Database management studio with a web interface",
   "bin": {
     "dbdesk-studio": "./packages/cli/dist/cli.js"

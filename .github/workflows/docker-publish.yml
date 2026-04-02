@@ -6,7 +6,7 @@ on:
       - 'v*'
 
 env:
-  IMAGE_NAME: anuraggoswami/dbdesk-studio
+  IMAGE_NAME: bhavikagarwal2001/dbdesk-studio
 
 jobs:
   docker:
