@@ -13,6 +13,11 @@ import {
 } from '@/components/ui/card'
 import { useSqlWorkspaceStore } from '@/store/sql-workspace-store'
 import { useTabStore } from '@/store/tab-store'
+import {
+  clearLastConnectionId,
+  getLastConnectionId,
+  setLastConnectionId
+} from '@/lib/last-connection'
 import { useNavigate } from '@tanstack/react-router'
 import { formatDistanceToNow } from 'date-fns'
 import { useMemo } from 'react'
@@ -49,6 +54,8 @@ export function ConnectionCard({ profile, onEdit }: ConnectionCardProps) {
     await connect(profile.id, {
       onSuccess: async () => {
         setCurrentConnection(profile.id)
+        // Remember this connection so a page reload restores the workspace.
+        setLastConnectionId(profile.id)
 
         try {
           const savedWorkspace = await dbdeskClient.loadWorkspace(profile.id)
@@ -76,6 +83,11 @@ export function ConnectionCard({ profile, onEdit }: ConnectionCardProps) {
   const handleDelete = async () => {
     const confirmed = window.confirm(`Delete connection "${profile.name}"? This cannot be undone.`)
     if (!confirmed) return
+
+    // Don't try to restore a connection we're deleting.
+    if (getLastConnectionId() === profile.id) {
+      clearLastConnectionId()
+    }
 
     await deleteConnection(profile.id)
   }
