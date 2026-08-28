@@ -78,6 +78,19 @@ export class PostgresAdapter implements SQLAdapter {
       connectionTimeoutMillis: DEFAULT_TIMEOUT_MS
     })
 
+    // node-postgres emits 'error' on the pool when an *idle* client hits a
+    // backend/network error (server restart, HA failover, dropped TCP conn).
+    // Without a listener this is an unhandled 'error' event and Node crashes
+    // the whole process. Handle it so a transient DB outage degrades
+    // gracefully: the pool discards the broken client and the next query
+    // establishes a fresh connection (e.g. to the newly promoted primary).
+    pool.on('error', (error) => {
+      console.error(
+        `[postgres] idle client error for ${this.options.host}:${this.options.port}/${this.options.database}:`,
+        error instanceof Error ? error.message : error
+      )
+    })
+
     try {
       const client = await pool.connect()
       try {
