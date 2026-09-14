@@ -1,6 +1,7 @@
 import type {
   DeleteTableResult,
   DeleteTableRowsResult,
+  ColumnDefinition,
   QueryResultRow,
   SchemaWithTables,
   TableDataOptions,
@@ -191,5 +192,33 @@ export function useDeleteTable(connectionId?: string) {
         description: cleanErrorMessage(error.message)
       })
     }
+  })
+}
+
+export function useInsertTableRow(connectionId?: string, schema?: string, table?: string) {
+  return useMutation({
+    mutationFn: (values: Record<string, unknown>) => {
+      if (!connectionId || !schema || !table) throw new Error('Connection and table are required')
+      return dbdeskClient.insertTableRow(connectionId, schema, table, values)
+    },
+    onSuccess: (_result, _variables, _context, client) => {
+      client.client.invalidateQueries({ queryKey: ['table-data', connectionId, schema, table] })
+      toast.success('Row added successfully')
+    },
+    onError: (error) => toast.error('Failed to add row', { description: cleanErrorMessage(error.message) })
+  })
+}
+
+export function useCreateTable(connectionId?: string) {
+  return useMutation({
+    mutationFn: ({ schema, table, columns }: { schema: string; table: string; columns: ColumnDefinition[] }) => {
+      if (!connectionId) throw new Error('Connection ID is required to create a table')
+      return dbdeskClient.createTable(connectionId, schema, table, columns)
+    },
+    onSuccess: (_result, _variables, _context, client) => {
+      client.client.invalidateQueries({ queryKey: ['schemasWithTables', connectionId] })
+      toast.success('Table created successfully')
+    },
+    onError: (error) => toast.error('Failed to create table', { description: cleanErrorMessage(error.message) })
   })
 }

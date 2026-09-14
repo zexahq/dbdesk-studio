@@ -1,4 +1,5 @@
 import type {
+  QueryBatchResult,
   QueryResult,
   SerializedQueryTab,
   SerializedTab,
@@ -42,6 +43,10 @@ export interface QueryTab extends BaseTab {
   totalRowCount?: number
   lastSavedContent?: string
   queryResults?: QueryResult
+  batchResults?: QueryBatchResult[]
+  activeResultIndex?: number
+  lastExecutedQuery?: string
+  isLocked: boolean
   isDirty: boolean
 }
 
@@ -67,6 +72,7 @@ interface TabStore {
   // Query-specific actions
   addQueryTab: () => string
   updateQueryTab: (tabId: string, updates: Partial<Omit<QueryTab, 'kind'>>) => void
+  toggleQueryTabLock: (tabId: string) => void
   findQueryTabById: (tabId: string) => QueryTab | undefined
 
   // Persistence
@@ -95,7 +101,11 @@ const createDefaultQueryTab = (): QueryTab => ({
   limit: 50,
   offset: 0,
   queryResults: undefined,
+  batchResults: undefined,
+  activeResultIndex: 0,
+  lastExecutedQuery: undefined,
   lastSavedContent: undefined,
+  isLocked: false,
   isDirty: false
 })
 
@@ -214,6 +224,12 @@ export const useTabStore = create<TabStore>((set, get) => ({
         if (tab.id !== tabId || tab.kind !== 'query') {
           return tab
         }
+        if (
+          tab.isLocked &&
+          ('editorContent' in updates || 'name' in updates || 'lastSavedContent' in updates)
+        ) {
+          return tab
+        }
         const next: QueryTab = { ...tab, ...updates }
         const lastSaved = next.lastSavedContent ?? ''
         const current = next.editorContent ?? ''
@@ -225,6 +241,14 @@ export const useTabStore = create<TabStore>((set, get) => ({
         state.activeTabId === tabId && updates.id ? updates.id : state.activeTabId
       return { tabs: newTabs, activeTabId: newActiveTabId }
     })
+  },
+
+  toggleQueryTabLock: (tabId: string) => {
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === tabId && tab.kind === 'query' ? { ...tab, isLocked: !tab.isLocked } : tab
+      )
+    }))
   },
 
   findQueryTabById: (tabId: string) => {
@@ -251,6 +275,10 @@ export const useTabStore = create<TabStore>((set, get) => ({
           limit: 50,
           offset: 0,
           queryResults: undefined,
+          batchResults: undefined,
+          activeResultIndex: 0,
+          lastExecutedQuery: undefined,
+          isLocked: serializedTab.isLocked ?? false,
           isDirty
         } as QueryTab
       }
@@ -283,7 +311,8 @@ export const useTabStore = create<TabStore>((set, get) => ({
           name: tab.name,
           editorContent: tab.editorContent,
           isTemporary: false,
-          lastSavedContent: tab.lastSavedContent
+          lastSavedContent: tab.lastSavedContent,
+          isLocked: tab.isLocked
         } as SerializedQueryTab
       }
     })

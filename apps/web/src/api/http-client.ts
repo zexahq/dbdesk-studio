@@ -1,6 +1,8 @@
 import type {
     ConnectionProfile,
     ConnectionWorkspace,
+    ColumnDefinition,
+    CreateTableResult,
     DatabaseType,
     DBConnectionOptions,
     DeleteTableResult,
@@ -8,6 +10,7 @@ import type {
     ExportTableOptions,
     ExportTableResult,
     QueryResult,
+    QueryBatchResult,
     QueryResultRow,
     SavedQuery,
     SchemaWithTables,
@@ -114,10 +117,28 @@ import type {
       return request(`/api/connections/${connectionId}`, { method: 'DELETE' })
     },
   
-    async runQuery(connectionId: string, query: string, options?: { limit?: number; offset?: number }): Promise<QueryResult> {
+    async runQuery(connectionId: string, query: string, options?: { limit?: number; offset?: number; queryId?: string }): Promise<QueryResult> {
       return request<QueryResult>(`/api/connections/${connectionId}/query`, {
         method: 'POST',
         body: JSON.stringify({ query, options })
+      })
+    },
+
+    async runManyQueries(
+      connectionId: string,
+      queries: string[],
+      options?: { limit?: number; offset?: number; queryId?: string }
+    ): Promise<QueryBatchResult[]> {
+      return request<QueryBatchResult[]>(`/api/connections/${connectionId}/query/batch`, {
+        method: 'POST',
+        body: JSON.stringify({ queries, options })
+      })
+    },
+
+    async cancelQuery(connectionId: string, queryId: string): Promise<{ cancelled: boolean }> {
+      return request<{ cancelled: boolean }>(`/api/connections/${connectionId}/query/cancel`, {
+        method: 'POST',
+        body: JSON.stringify({ queryId })
       })
     },
   
@@ -182,6 +203,30 @@ import type {
           table
         )}/cell`,
         { method: 'POST', body: JSON.stringify({ columnToUpdate, newValue, row }) }
+      )
+    },
+
+    async insertTableRow(
+      connectionId: string,
+      schema: string,
+      table: string,
+      values: Record<string, unknown>
+    ): Promise<{ insertedRowCount: number }> {
+      return request<{ insertedRowCount: number }>(
+        `/api/connections/${connectionId}/schemas/${encodeURIComponent(schema)}/tables/${encodeURIComponent(table)}/rows`,
+        { method: 'POST', body: JSON.stringify({ values }) }
+      )
+    },
+
+    async createTable(
+      connectionId: string,
+      schema: string,
+      table: string,
+      columns: ColumnDefinition[]
+    ): Promise<CreateTableResult> {
+      return request<CreateTableResult>(
+        `/api/connections/${connectionId}/schemas/${encodeURIComponent(schema)}/tables`,
+        { method: 'POST', body: JSON.stringify({ table, columns }) }
       )
     },
   
@@ -290,6 +335,7 @@ import type {
     ExportTableOptions,
     ExportTableResult,
     QueryResult,
+    QueryBatchResult,
     QueryResultRow,
     SavedQuery,
     SchemaWithTables,

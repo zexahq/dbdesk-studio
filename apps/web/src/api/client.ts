@@ -1,6 +1,8 @@
 import type {
   ConnectionProfile,
   ConnectionWorkspace,
+  ColumnDefinition,
+  CreateTableResult,
   DatabaseType,
   DBConnectionOptions,
   DeleteTableResult,
@@ -8,6 +10,7 @@ import type {
   ExportTableOptions,
   ExportTableResult,
   QueryResult,
+  QueryBatchResult,
   QueryResultRow,
   SavedQuery,
   SchemaWithTables,
@@ -76,9 +79,21 @@ export const dbdeskClient = {
   async runQuery(
     connectionId: string,
     query: string,
-    options?: { limit?: number; offset?: number }
+    options?: { limit?: number; offset?: number; queryId?: string }
   ): Promise<QueryResult> {
     return getDbdesk().runQuery(connectionId, query, options)
+  },
+
+  async runManyQueries(
+    connectionId: string,
+    queries: string[],
+    options?: { limit?: number; offset?: number; queryId?: string }
+  ): Promise<QueryBatchResult[]> {
+    return getDbdesk().runManyQueries(connectionId, queries, options)
+  },
+
+  async cancelQuery(connectionId: string, queryId: string): Promise<{ cancelled: boolean }> {
+    return getDbdesk().cancelQuery(connectionId, queryId)
   },
 
   async listSchemas(connectionId: string): Promise<string[]> {
@@ -124,6 +139,24 @@ export const dbdeskClient = {
     row: QueryResultRow
   ): Promise<UpdateTableCellResult> {
     return getDbdesk().updateTableCell(connectionId, schema, table, columnToUpdate, newValue, row)
+  },
+
+  async insertTableRow(
+    connectionId: string,
+    schema: string,
+    table: string,
+    values: Record<string, unknown>
+  ): Promise<{ insertedRowCount: number }> {
+    return getDbdesk().insertTableRow(connectionId, schema, table, values)
+  },
+
+  async createTable(
+    connectionId: string,
+    schema: string,
+    table: string,
+    columns: ColumnDefinition[]
+  ): Promise<CreateTableResult> {
+    return getDbdesk().createTable(connectionId, schema, table, columns)
   },
 
   async loadWorkspace(connectionId: string): Promise<ConnectionWorkspace | undefined> {

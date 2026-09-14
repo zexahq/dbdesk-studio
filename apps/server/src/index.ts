@@ -1,9 +1,11 @@
 import type {
+  ColumnDefinition,
   ConnectionProfile,
   DatabaseType,
   DBConnectionOptions,
   DeleteTableRowsOptions,
   ExportTableOptions,
+  RunQueryOptions,
   QueryResultRow,
   TableDataOptions,
   TableFilterCondition,
@@ -328,7 +330,7 @@ app.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const connectionId = getRouteParam(req.params, 'connectionId')
-      const { query, options } = req.body as { query: string; options?: { limit?: number; offset?: number } }
+      const { query, options } = req.body as { query: string; options?: RunQueryOptions }
 
       if (!query) {
         res.status(400).json({ error: 'Missing required field: query' })
@@ -345,6 +347,54 @@ app.post(
 
       const result = await adapter.runQuery(query, options)
       res.json(result)
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+app.post(
+  '/api/connections/:connectionId/query/batch',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const connectionId = getRouteParam(req.params, 'connectionId')
+      const { queries, options } = req.body as { queries: string[]; options?: RunQueryOptions }
+      if (!Array.isArray(queries) || queries.length === 0) {
+        res.status(400).json({ error: 'Missing required field: queries' })
+        return
+      }
+
+      const adapter = ConnectionManager.getInstance().getConnection(connectionId)
+      if (!adapter?.runManyQueries) {
+        res.status(404).json({ error: 'Connection not found or batch queries are not supported' })
+        return
+      }
+
+      res.json(await adapter.runManyQueries(queries, options))
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+app.post(
+  '/api/connections/:connectionId/query/cancel',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const connectionId = getRouteParam(req.params, 'connectionId')
+      const { queryId } = req.body as { queryId: string }
+      if (!queryId) {
+        res.status(400).json({ error: 'Missing required field: queryId' })
+        return
+      }
+
+      const adapter = ConnectionManager.getInstance().getConnection(connectionId)
+      if (!adapter?.cancelQuery) {
+        res.json({ cancelled: false })
+        return
+      }
+
+      res.json({ cancelled: await adapter.cancelQuery(queryId) })
     } catch (err) {
       next(err)
     }
@@ -556,6 +606,51 @@ app.post(
       const options: UpdateTableCellOptions = { schema, table, columnToUpdate, newValue, row }
       const result = await adapter.updateTableCell(options)
       res.json(result)
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+app.post(
+  '/api/connections/:connectionId/schemas/:schema/tables/:table/rows',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const connectionId = getRouteParam(req.params, 'connectionId')
+      const schema = getRouteParam(req.params, 'schema')
+      const table = getRouteParam(req.params, 'table')
+      const adapter = ConnectionManager.getInstance().getSQLConnection(connectionId)
+      if (!adapter) {
+        res.status(404).json({ error: 'Connection not found or not a SQL adapter' })
+        return
+      }
+
+      res.json(await adapter.insertTableRow({ schema, table, values: req.body?.values ?? req.body ?? {} }))
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+app.post(
+  '/api/connections/:connectionId/schemas/:schema/tables',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const connectionId = getRouteParam(req.params, 'connectionId')
+      const schema = getRouteParam(req.params, 'schema')
+      const { table, columns } = req.body as { table: string; columns: unknown[] }
+      if (!table || !Array.isArray(columns)) {
+        res.status(400).json({ error: 'Missing required fields: table, columns' })
+        return
+      }
+
+      const adapter = ConnectionManager.getInstance().getSQLConnection(connectionId)
+      if (!adapter) {
+        res.status(404).json({ error: 'Connection not found or not a SQL adapter' })
+        return
+      }
+
+      res.status(201).json(await adapter.createTable({ schema, table, columns: columns as ColumnDefinition[] }))
     } catch (err) {
       next(err)
     }

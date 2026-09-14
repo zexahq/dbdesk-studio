@@ -14,9 +14,10 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useTheme } from '@/hooks/use-theme'
 import { useSqlWorkspaceStore } from '@/store/sql-workspace-store'
+import { useSavedQueriesStore } from '@/store/saved-queries-store'
 import { useTabStore } from '@/store/tab-store'
 import { useNavigate } from '@tanstack/react-router'
-import { Database, Moon, Search, Sun, Table2Icon, Unplug } from 'lucide-react'
+import { Database, FileText, Moon, Plus, Search, Sun, Table2Icon, Unplug } from 'lucide-react'
 import * as React from 'react'
 import { useEffect, useState } from 'react'
 import { Button } from './ui/button'
@@ -30,9 +31,14 @@ export function QuickPanel() {
   const setCurrentConnection = useSqlWorkspaceStore((s) => s.setCurrentConnection)
 
   const addTableTab = useTabStore((s) => s.addTableTab)
+  const addQueryTab = useTabStore((s) => s.addQueryTab)
+  const updateQueryTab = useTabStore((s) => s.updateQueryTab)
+  const setActiveTab = useTabStore((s) => s.setActiveTab)
+  const findQueryTabById = useTabStore((s) => s.findQueryTabById)
   const reset = useTabStore((s) => s.reset)
   const loadFromSerialized = useTabStore((s) => s.loadFromSerialized)
   const { theme, toggleTheme } = useTheme()
+  const savedQueries = useSavedQueriesStore((s) => s.queries)
 
   const { data: connections } = useConnections()
   const { mutateAsync: connect } = useConnect()
@@ -110,7 +116,7 @@ export function QuickPanel() {
             </kbd>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Quick Search (Ctrl + K)</p>
+            <p>Quick Search (Ctrl + P)</p>
           </TooltipContent>
         </Tooltip>
       </Button>
@@ -141,11 +147,52 @@ export function QuickPanel() {
           )}
           {currentConnectionId && (
             <CommandGroup heading="Connection Actions" className="py-2">
+              <CommandItem
+                onSelect={() => {
+                  addQueryTab()
+                  setOpen(false)
+                }}
+                className="py-2!"
+              >
+                <Plus className="size-4 mr-2" />
+                <span className="text-sm">New Query</span>
+              </CommandItem>
               <CommandItem onSelect={handleDisconnect} className="py-2!">
                 <Unplug className="size-4 mr-2" />
                 <span className="text-sm">Disconnect</span>
               </CommandItem>
             </CommandGroup>
+          )}
+          {currentConnectionId && savedQueries.length > 0 && (
+            <>
+              <CommandGroup heading="Saved Queries" className="py-2">
+                {savedQueries.map((query) => (
+                  <CommandItem
+                    key={query.id}
+                    onSelect={() => {
+                      const existingTab = findQueryTabById(query.id)
+                      if (existingTab) {
+                        setActiveTab(existingTab.id)
+                      } else {
+                        const tabId = addQueryTab()
+                        updateQueryTab(tabId, {
+                          id: query.id,
+                          name: query.name,
+                          editorContent: query.content,
+                          lastSavedContent: query.content
+                        })
+                      }
+                      setOpen(false)
+                    }}
+                    className="py-2!"
+                  >
+                    <FileText className="size-4 mr-2" />
+                    <span className="text-sm truncate">{query.name}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+              <CommandSeparator />
+            </>
           )}
           {!isEmbedded && (
             <CommandGroup heading="General Settings" className="py-2">

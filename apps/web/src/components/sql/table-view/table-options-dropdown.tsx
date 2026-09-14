@@ -1,5 +1,6 @@
 import { useExportTableAsCSV, useExportTableAsSQL } from '@/api/queries/export'
-import { useDeleteTable } from '@/api/queries/schema'
+import { useDeleteTable, useInsertTableRow, useTableIntrospection } from '@/api/queries/schema'
+import { AddRowSheet } from './add-row-sheet'
 import { DeleteTableConfirmationDialog } from '@/components/sql/dialogs/delete-table-confirmation-dialog'
 import { Button } from '@/components/ui/button'
 import {
@@ -11,7 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { useTabStore } from '@/store/tab-store'
-import { FileCode2, FileDown, MoreVertical, Trash2 } from 'lucide-react'
+import { FileCode2, FileDown, MoreVertical, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 
 interface TableOptionsDropdownProps {
@@ -28,9 +29,12 @@ export function TableOptionsDropdown({
   disabled
 }: TableOptionsDropdownProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [addRowOpen, setAddRowOpen] = useState(false)
   const exportCSVMutation = useExportTableAsCSV(connectionId)
   const exportSQLMutation = useExportTableAsSQL(connectionId)
   const deleteTableMutation = useDeleteTable(connectionId)
+  const insertRowMutation = useInsertTableRow(connectionId, schema, table)
+  const { data: tableInfo } = useTableIntrospection(connectionId, schema, table)
 
   const removeTab = useTabStore((s) => s.removeTab)
   const findTableTabById = useTabStore((s) => s.findTableTabById)
@@ -75,6 +79,11 @@ export function TableOptionsDropdown({
         sideOffset={4}
         avoidCollisions
       >
+        <DropdownMenuItem className="cursor-pointer text-sm flex items-center gap-2" onSelect={() => setAddRowOpen(true)}>
+          <Plus className="size-4" />
+          <span>Add row</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem
           className="cursor-pointer text-sm flex items-center gap-2"
           onSelect={() => {
@@ -111,6 +120,16 @@ export function TableOptionsDropdown({
         table={table}
         schema={schema}
         isPending={deleteTableMutation.isPending}
+      />
+      <AddRowSheet
+        open={addRowOpen}
+        onOpenChange={setAddRowOpen}
+        columns={tableInfo?.columns ?? []}
+        tableName={table}
+        isPending={insertRowMutation.isPending}
+        onSubmit={(values) => {
+          insertRowMutation.mutate(values, { onSuccess: () => setAddRowOpen(false) })
+        }}
       />
     </DropdownMenu>
   )

@@ -18,6 +18,7 @@ export interface SerializedQueryTab {
     editorContent: string;
     isTemporary: boolean;
     lastSavedContent?: string;
+    isLocked?: boolean;
 }
 export type SerializedTab = SerializedTableTab | SerializedQueryTab;
 export interface SavedQuery {

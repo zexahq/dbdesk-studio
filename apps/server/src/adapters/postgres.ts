@@ -3,6 +3,11 @@ import type {
   DeleteTableResult,
   DeleteTableRowsOptions,
   DeleteTableRowsResult,
+  CreateTableOptions,
+  CreateTableResult,
+  InsertTableRowOptions,
+  InsertTableRowResult,
+  QueryBatchResult,
   QueryResult,
   RunQueryOptions,
   SQLAdapter,
@@ -13,7 +18,7 @@ import type {
 } from '@common/types'
 import type { PostgreSQLSslMode } from '@common/types/sql'
 import { performance } from 'node:perf_hooks'
-import { Pool, type QueryResult as PgQueryResult } from 'pg'
+import { Pool, type PoolClient, type QueryResult as PgQueryResult } from 'pg'
 
 import type {
   ExportTableOptions,
@@ -58,6 +63,7 @@ function getSslConfig(sslMode?: PostgreSQLSslMode): boolean | object {
 
 export class PostgresAdapter implements SQLAdapter {
   private pool: Pool | null = null
+  private readonly activeQueries = new Map<string, number>()
 
   constructor(private readonly options: SQLConnectionOptions) {}
 
@@ -121,6 +127,75 @@ export class PostgresAdapter implements SQLAdapter {
 
     const normalizedQuery = normalizeQuery(query)
 
+    if (options?.queryId) {
+      const client = await pool.connect()
+      try {
+        const pidResult = await client.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')
+        const pid = pidResult.rows[0]?.pid
+        if (typeof pid === 'number') {
+          this.activeQueries.set(options.queryId, pid)
+        }
+        return await this.executeQuery(normalizedQuery, options, client, start)
+      } finally {
+        this.activeQueries.delete(options.queryId)
+        client.release()
+      }
+    }
+
+    return this.executeQuery(normalizedQuery, options, pool, start)
+  }
+
+  public async runManyQueries(
+    queries: string[],
+    options?: RunQueryOptions
+  ): Promise<QueryBatchResult[]> {
+    const pool = this.ensurePool()
+    const client = await pool.connect()
+    const results: QueryBatchResult[] = []
+    const queryId = options?.queryId
+
+    try {
+      if (queryId) {
+        const pidResult = await client.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')
+        const pid = pidResult.rows[0]?.pid
+        if (typeof pid === 'number') this.activeQueries.set(queryId, pid)
+      }
+      for (const query of queries) {
+        const normalizedQuery = normalizeQuery(query).trim()
+        if (!normalizedQuery) continue
+
+        const start = performance.now()
+        try {
+          const result = await this.executeQuery(normalizedQuery, options, client, start)
+          results.push({
+            query: normalizedQuery,
+            result,
+            executionTime: result.executionTime ?? performance.now() - start
+          })
+        } catch (error) {
+          results.push({
+            query: normalizedQuery,
+            error: error instanceof Error ? error.message : 'Failed to execute query',
+            executionTime: performance.now() - start
+          })
+          break
+        }
+      }
+    } finally {
+      if (queryId) this.activeQueries.delete(queryId)
+      client.release()
+    }
+
+    return results
+  }
+
+  private async executeQuery(
+    normalizedQuery: string,
+    options: RunQueryOptions | undefined,
+    runner: Pool | PoolClient,
+    start: number
+  ): Promise<QueryResult> {
+
     // Check if this is a SELECT query that can be paginated
     if (options && isSelectableQuery(normalizedQuery)) {
       // Execute count query and paginated query in parallel
@@ -128,8 +203,8 @@ export class PostgresAdapter implements SQLAdapter {
       const paginatedQuery = `SELECT * FROM (${normalizedQuery}) AS subquery LIMIT ${options.limit ?? 50} OFFSET ${options.offset ?? 0}`
 
       const [countResult, pageResult] = await Promise.all([
-        pool.query<{ total: number }>(countQuery),
-        pool.query<QueryResultRow>(paginatedQuery)
+        runner.query<{ total: number }>(countQuery),
+        runner.query<QueryResultRow>(paginatedQuery)
       ])
 
       const executionTime = performance.now() - start
@@ -146,10 +221,19 @@ export class PostgresAdapter implements SQLAdapter {
     }
 
     // For non-SELECT queries or when no pagination options provided
-    const result = await pool.query(normalizedQuery)
+    const result = await runner.query(normalizedQuery)
     const executionTime = performance.now() - start
 
     return this.transformResult(result, executionTime)
+  }
+
+  public async cancelQuery(queryId: string): Promise<boolean> {
+    const pid = this.activeQueries.get(queryId)
+    if (typeof pid !== 'number') return false
+
+    const pool = this.ensurePool()
+    await pool.query('SELECT pg_cancel_backend($1)', [pid])
+    return true
   }
 
   public async listSchemas(): Promise<string[]> {
@@ -363,6 +447,62 @@ export class PostgresAdapter implements SQLAdapter {
     } finally {
       client.release()
     }
+  }
+
+  public async insertTableRow(options: InsertTableRowOptions): Promise<InsertTableRowResult> {
+    const pool = this.ensurePool()
+    const { schema, table, values } = options
+    const columns = await this.queryColumns(pool, schema, table)
+    const allowedColumns = new Set(columns.map((column) => column.name))
+    const entries = Object.entries(values).filter(([column, value]) => {
+      return allowedColumns.has(column) && value !== undefined && value !== ''
+    })
+
+    const query = entries.length
+      ? `INSERT INTO ${quoteIdentifier(schema)}.${quoteIdentifier(table)} (${entries
+          .map(([column]) => quoteIdentifier(column))
+          .join(', ')}) VALUES (${entries.map((_, index) => `$${index + 1}`).join(', ')})`
+      : `INSERT INTO ${quoteIdentifier(schema)}.${quoteIdentifier(table)} DEFAULT VALUES`
+    const result = await pool.query(query, entries.map(([, value]) => value === '' ? null : value))
+    return { insertedRowCount: result.rowCount ?? 0 }
+  }
+
+  public async createTable(options: CreateTableOptions): Promise<CreateTableResult> {
+    const pool = this.ensurePool()
+    const { schema, table, columns } = options
+    if (columns.length === 0) throw new Error('At least one column is required')
+
+    const definitions = columns.map((column) => {
+      if (!column.name.trim() || !column.type.trim()) {
+        throw new Error('Every column requires a name and type')
+      }
+      if (!/^[A-Za-z][A-Za-z0-9_]*(?:\s+[A-Za-z][A-Za-z0-9_]*)*(?:\s*\(\s*\d+(?:\s*,\s*\d+)?\s*\))?(?:\[\])?$/.test(column.type.trim())) {
+        throw new Error(`Invalid PostgreSQL type: ${column.type}`)
+      }
+      if (column.defaultValue && /[;]|--|\/\*/.test(column.defaultValue)) {
+        throw new Error('Invalid default value')
+      }
+
+      let definition = `${quoteIdentifier(column.name)} ${column.type.trim()}`
+      if (column.nullable === false) definition += ' NOT NULL'
+      if (column.isUnique) definition += ' UNIQUE'
+      if (column.defaultValue?.trim()) definition += ` DEFAULT ${column.defaultValue.trim()}`
+      if (column.foreignKey) {
+        const { schema: fkSchema, table: fkTable, column: fkColumn, onDelete, onUpdate } = column.foreignKey
+        const actions = new Set(['CASCADE', 'RESTRICT', 'SET NULL', 'SET DEFAULT', 'NO ACTION'])
+        if (!actions.has(onDelete) || !actions.has(onUpdate)) throw new Error('Invalid foreign-key action')
+        definition += ` REFERENCES ${quoteIdentifier(fkSchema)}.${quoteIdentifier(fkTable)} (${quoteIdentifier(fkColumn)}) ON DELETE ${onDelete} ON UPDATE ${onUpdate}`
+      }
+      return definition
+    })
+
+    const primaryKeys = columns.filter((column) => column.isPrimaryKey).map((column) => quoteIdentifier(column.name))
+    if (primaryKeys.length > 0) definitions.push(`PRIMARY KEY (${primaryKeys.join(', ')})`)
+
+    await pool.query(
+      `CREATE TABLE ${quoteIdentifier(schema)}.${quoteIdentifier(table)} (${definitions.join(', ')})`
+    )
+    return { success: true }
   }
 
   public async exportTableAsCSV(options: ExportTableOptions): Promise<ExportTableResult> {

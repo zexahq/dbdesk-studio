@@ -1,5 +1,6 @@
 import type { SQLConnectionProfile } from '@common/types'
 import { SaveQueryDialog } from '@/components/dialogs/save-query-dialog'
+import { AddTableSheet } from '@/components/sql/table-view/add-table-sheet'
 import { TableOptionsDropdown } from '@/components/sql/table-view/table-options-dropdown'
 import {
   Collapsible,
@@ -58,6 +59,8 @@ export function WorkspaceSidebar({ profile }: WorkspaceSidebarProps) {
   const [renameMode, setRenameMode] = useState<RenameMode>({ open: false, queryId: null })
 
   const schemasWithTables = useSqlWorkspaceStore((s) => s.schemasWithTables)
+  const sidebarViewMode = useSqlWorkspaceStore((s) => s.sidebarViewMode)
+  const setSidebarViewMode = useSqlWorkspaceStore((s) => s.setSidebarViewMode)
   const addTableTab = useTabStore((s) => s.addTableTab)
   const addQueryTab = useTabStore((s) => s.addQueryTab)
   const setActiveTab = useTabStore((s) => s.setActiveTab)
@@ -93,6 +96,21 @@ export function WorkspaceSidebar({ profile }: WorkspaceSidebarProps) {
       console.error('Failed to load queries:', error)
     })
   }, [profile.id, loadQueries])
+
+  useEffect(() => {
+    const handleShortcut = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || !event.shiftKey) return
+      if (event.key.toLowerCase() === 'e') {
+        event.preventDefault()
+        setSidebarViewMode('schemas')
+      } else if (event.key.toLowerCase() === 'y') {
+        event.preventDefault()
+        setSidebarViewMode('queries')
+      }
+    }
+    window.addEventListener('keydown', handleShortcut)
+    return () => window.removeEventListener('keydown', handleShortcut)
+  }, [setSidebarViewMode])
 
   const handleTableClick = (schema: string, table: string) => {
     addTableTab(schema, table)
@@ -135,12 +153,16 @@ export function WorkspaceSidebar({ profile }: WorkspaceSidebarProps) {
 
     const query = queries.find((q) => q.id === renameMode.queryId)
     if (!query) return
+    const tab = findQueryTabById(renameMode.queryId)
+    if (tab?.isLocked) {
+      toast.error('Unlock the query tab before renaming it')
+      return
+    }
 
     try {
       await updateQuery(profile.id, renameMode.queryId, newName, query.content)
       toast.success('Query renamed')
 
-      const tab = findQueryTabById(renameMode.queryId)
       if (tab) {
         updateQueryTab(tab.id, { name: newName })
       }
@@ -177,11 +199,29 @@ export function WorkspaceSidebar({ profile }: WorkspaceSidebarProps) {
               <Plus className="size-4 text-muted-foreground" />
               New Query
             </Button>
+            <div className="grid grid-cols-2 gap-1">
+              <Button
+                variant={sidebarViewMode === 'schemas' ? 'secondary' : 'ghost'}
+                className="h-8 justify-start gap-2 text-xs"
+                onClick={() => setSidebarViewMode('schemas')}
+                title="Schemas (Ctrl+Shift+E)"
+              >
+                <DatabaseIcon className="size-3.5" /> Schemas
+              </Button>
+              <Button
+                variant={sidebarViewMode === 'queries' ? 'secondary' : 'ghost'}
+                className="h-8 justify-start gap-2 text-xs"
+                onClick={() => setSidebarViewMode('queries')}
+                title="Saved queries (Ctrl+Shift+Y)"
+              >
+                <FileText className="size-3.5" /> Queries
+              </Button>
+            </div>
           </SidebarGroup>
         </SidebarHeader>
         <SidebarSeparator />
         <SidebarContent className="gap-0 py-2">
-          <Collapsible defaultOpen className="group/schema">
+          <Collapsible defaultOpen className={cn('group/schema', sidebarViewMode !== 'schemas' && 'hidden')}>
             <SidebarGroup className="gap-2 py-0">
               <div className="flex items-center gap-2">
                 <CollapsibleTrigger className="flex-1 cursor-pointer h-10 px-3 flex items-center justify-between text-sm font-medium border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors">
@@ -226,7 +266,7 @@ export function WorkspaceSidebar({ profile }: WorkspaceSidebarProps) {
             </SidebarGroup>
           </Collapsible>
 
-          <Collapsible className="group/queries">
+          <Collapsible className={cn('group/queries', sidebarViewMode !== 'queries' && 'hidden')}>
             <SidebarGroup className="gap-2">
               <CollapsibleTrigger className="cursor-pointer w-full h-10 px-3 flex items-center justify-between text-sm font-medium border rounded-md hover:bg-accent hover:text-accent-foreground transition-colors">
                 <span className="flex items-center gap-2">
@@ -329,6 +369,7 @@ type SchemaTreeProps = {
 
 function SchemaTree({ connectionId, schema, tables, activeTab, onTableClick }: SchemaTreeProps) {
   const isPublic = schema === 'public'
+  const [createTableOpen, setCreateTableOpen] = useState(false)
 
   return (
     <SidebarMenuItem>
@@ -336,13 +377,24 @@ function SchemaTree({ connectionId, schema, tables, activeTab, onTableClick }: S
         className="group/collapsible [&[data-state=open]>button>svg:first-child]:rotate-90"
         defaultOpen={isPublic}
       >
-        <CollapsibleTrigger asChild>
-          <SidebarMenuButton className="cursor-pointer h-9">
-            <ChevronRight className="size-4 transition-transform" />
-            <DatabaseIcon className="size-4" />
-            <span>{schema}</span>
-          </SidebarMenuButton>
-        </CollapsibleTrigger>
+        <div className="flex items-center gap-1">
+          <CollapsibleTrigger asChild>
+            <SidebarMenuButton className="cursor-pointer h-9">
+              <ChevronRight className="size-4 transition-transform" />
+              <DatabaseIcon className="size-4" />
+              <span>{schema}</span>
+            </SidebarMenuButton>
+          </CollapsibleTrigger>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7 shrink-0"
+            title={`Create table in ${schema}`}
+            onClick={() => setCreateTableOpen(true)}
+          >
+            <Plus className="size-4" />
+          </Button>
+        </div>
         <CollapsibleContent>
           <SidebarMenuSub className="ml-3! mr-0!">
             {tables.length === 0 ? (
@@ -380,6 +432,12 @@ function SchemaTree({ connectionId, schema, tables, activeTab, onTableClick }: S
           </SidebarMenuSub>
         </CollapsibleContent>
       </Collapsible>
+      <AddTableSheet
+        connectionId={connectionId}
+        schema={schema}
+        open={createTableOpen}
+        onOpenChange={setCreateTableOpen}
+      />
     </SidebarMenuItem>
   )
 }

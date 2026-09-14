@@ -1,7 +1,8 @@
 import type { Tab } from '@/store/tab-store'
+import { useTabStore } from '@/store/tab-store'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { SquareCode, Table2Icon, X } from 'lucide-react'
+import { Lock, SquareCode, Table2Icon, Unlock, X } from 'lucide-react'
 
 interface SortableTabButtonProps {
   tab: Tab
@@ -12,6 +13,7 @@ interface SortableTabButtonProps {
 }
 
 export function SortableTabButton({ tab, isActive, isDirty, onClick, onClose }: SortableTabButtonProps) {
+  const toggleQueryTabLock = useTabStore((s) => s.toggleQueryTabLock)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: tab.id
   })
@@ -53,11 +55,48 @@ export function SortableTabButton({ tab, isActive, isDirty, onClick, onClose }: 
         {tab.kind === 'table' ? tab.table : tab.name}
       </span>
       {isDirty && <span className="size-2 rounded-full bg-white shrink-0" />}
+      {tab.kind === 'query' && (
+        <div
+          role="button"
+          tabIndex={0}
+          title={tab.isLocked ? 'Unlock query tab' : 'Lock query tab'}
+          aria-label={tab.isLocked ? 'Unlock query tab' : 'Lock query tab'}
+          aria-pressed={tab.isLocked}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            if (!isDragging) toggleQueryTabLock(tab.id)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              e.stopPropagation()
+              if (!isDragging) toggleQueryTabLock(tab.id)
+            }
+          }}
+          className={`rounded-sm p-0.5 transition-colors hover:bg-muted-foreground/20 shrink-0 cursor-pointer ${
+            isDragging ? 'opacity-0 cursor-not-allowed' : ''
+          }`}
+        >
+          {tab.isLocked ? <Lock className="size-3" /> : <Unlock className="size-3 opacity-50" />}
+          <span className="sr-only">{tab.isLocked ? 'Unlock query tab' : 'Lock query tab'}</span>
+        </div>
+      )}
       <div
         role="button"
+        tabIndex={0}
+        aria-label="Close tab"
+        onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation()
           if (!isDragging) onClose()
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            e.stopPropagation()
+            if (!isDragging) onClose()
+          }
         }}
         className={`rounded-sm opacity-0 group-hover:opacity-100 hover:bg-muted-foreground/20 p-0.5 transition-opacity ${
           isActive ? 'opacity-100' : ''

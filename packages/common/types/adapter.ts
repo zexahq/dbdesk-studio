@@ -9,6 +9,8 @@ import type { SQLAdapter } from './sql'
 export interface RunQueryOptions {
   limit?: number
   offset?: number
+  includeTotalRowCount?: boolean
+  queryId?: string
 }
 
 /**
@@ -23,6 +25,13 @@ export interface QueryResult {
   totalRowCount?: number
   limit?: number
   offset?: number
+}
+
+export interface QueryBatchResult {
+  query: string
+  result?: QueryResult
+  error?: string
+  executionTime: number
 }
 
 /**
@@ -43,6 +52,10 @@ export interface BaseAdapter {
    * Execute a query and return results
    */
   runQuery(query: string, options?: RunQueryOptions): Promise<QueryResult>
+
+  runManyQueries?(queries: string[], options?: RunQueryOptions): Promise<QueryBatchResult[]>
+
+  cancelQuery?(queryId: string): Promise<boolean>
 }
 
 /**

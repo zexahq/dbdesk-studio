@@ -5,17 +5,23 @@
 
 // Base adapter types
 export type { QueryResultRow } from 'pg'
-export type { BaseAdapter, DBAdapter, QueryResult, RunQueryOptions } from './adapter'
+export type { BaseAdapter, DBAdapter, QueryBatchResult, QueryResult, RunQueryOptions } from './adapter'
 
 // SQL types
 export type {
   ColumnInfo,
+  ColumnDefinition,
+  CreateTableOptions,
+  CreateTableResult,
   DeleteTableOptions,
   DeleteTableResult,
   DeleteTableRowsOptions,
   DeleteTableRowsResult,
+  EditorQueryBlock,
   ExportTableOptions,
   ExportTableResult,
+  InsertTableRowOptions,
+  InsertTableRowResult,
   IndexInfo,
   SQLAdapter,
   SQLConnectionOptions,

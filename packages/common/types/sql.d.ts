@@ -148,6 +148,14 @@ export interface UpdateTableCellOptions {
 export interface UpdateTableCellResult {
     updatedRowCount: number;
 }
+export interface InsertTableRowOptions {
+    schema: string;
+    table: string;
+    values: Record<string, unknown>;
+}
+export interface InsertTableRowResult {
+    insertedRowCount: number;
+}
 /**
  * Options for exporting table data
  */
@@ -171,6 +179,34 @@ export interface DeleteTableOptions {
 }
 export interface DeleteTableResult {
     success: boolean;
+}
+export interface ColumnDefinition {
+    name: string;
+    type: string;
+    nullable?: boolean;
+    defaultValue?: string;
+    isPrimaryKey?: boolean;
+    isUnique?: boolean;
+    foreignKey?: {
+        schema: string;
+        table: string;
+        column: string;
+        onDelete: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT' | 'NO ACTION';
+        onUpdate: 'CASCADE' | 'RESTRICT' | 'SET NULL' | 'SET DEFAULT' | 'NO ACTION';
+    };
+}
+export interface CreateTableOptions {
+    schema: string;
+    table: string;
+    columns: ColumnDefinition[];
+}
+export interface CreateTableResult {
+    success: boolean;
+}
+export interface EditorQueryBlock {
+    startLineNumber: number;
+    endLineNumber: number;
+    queries: string[];
 }
 /**
  * Schema with its tables
@@ -211,6 +247,7 @@ export interface SQLAdapter extends BaseAdapter {
      * Update a single cell in a table using primary keys to identify the row
      */
     updateTableCell(options: UpdateTableCellOptions): Promise<UpdateTableCellResult>;
+    insertTableRow(options: InsertTableRowOptions): Promise<InsertTableRowResult>;
     /**
      * Export table data as CSV
      */
@@ -223,4 +260,5 @@ export interface SQLAdapter extends BaseAdapter {
      * Delete a table from the database
      */
     deleteTable(options: DeleteTableOptions): Promise<DeleteTableResult>;
+    createTable(options: CreateTableOptions): Promise<CreateTableResult>;
 }

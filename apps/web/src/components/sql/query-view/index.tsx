@@ -1,5 +1,5 @@
 import type { SQLConnectionProfile } from '@common/types'
-import { useRunQuery } from '@/api/queries/query'
+import { useCancelQuery, useRunManyQueries, useRunQuery } from '@/api/queries/query'
 import { SaveQueryDialog } from '@/components/dialogs/save-query-dialog'
 import SqlEditor from '@/components/editor/sql-editor'
 import {
@@ -8,9 +8,12 @@ import {
   ResizablePanelGroup
 } from '@/components/ui/resizable'
 import { useSavedQueriesStore } from '@/store/saved-queries-store'
+import { useSqlWorkspaceStore } from '@/store/sql-workspace-store'
 import { type QueryTab, useTabStore } from '@/store/tab-store'
 import { toast } from '@/lib/toast'
-import { useCallback, useEffect, useState } from 'react'
+import { getQueryAtLine, hasDangerousSqlKeywords } from '@/lib/sql-parser'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { DangerousQueryDialog } from '../dialogs/dangerous-query-dialog'
 import { QueryBottombar } from './query-bottombar'
 import { QueryResults } from './query-results'
 
@@ -24,15 +27,22 @@ export function QueryView({ profile, activeTab }: QueryViewProps) {
   const saveQuery = useSavedQueriesStore((s) => s.saveQuery)
   const updateQuery = useSavedQueriesStore((s) => s.updateQuery)
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
+  const [dangerousDialogOpen, setDangerousDialogOpen] = useState(false)
+  const pendingQueriesRef = useRef<string[]>([])
+  const queryIdRef = useRef<string | null>(null)
 
   const {
     mutateAsync: runQueryMutation,
     isPending: isExecuting,
     error: executionError
   } = useRunQuery(profile.id)
+  const runManyMutation = useRunManyQueries(profile.id)
+  const cancelMutation = useCancelQuery(profile.id)
 
   const isQueryTabSaved = queries.some((q) => q.id === activeTab.id)
   const updateQueryTab = useTabStore((s) => s.updateQueryTab)
+  const schemasWithTables = useSqlWorkspaceStore((s) => s.schemasWithTables)
+  const tableColumns = useSqlWorkspaceStore((s) => s.tableColumns)
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -55,36 +65,54 @@ export function QueryView({ profile, activeTab }: QueryViewProps) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [activeTab, isQueryTabSaved])
 
-  const executeQueryWithPagination = useCallback(
-    async (limit: number, offset: number) => {
-      const rawQuery = activeTab.editorContent.trim()
-      if (!rawQuery) {
-        toast.error('Query cannot be empty')
-        return
-      }
+  const executeQueries = useCallback(
+    async (queries: string[], limit: number, offset: number) => {
+      if (queries.length === 0) return
+      const queryId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
+      queryIdRef.current = queryId
+      updateQueryTab(activeTab.id, { queryResults: undefined, batchResults: undefined, activeResultIndex: 0 })
 
       try {
-        const result = await runQueryMutation({ query: rawQuery, options: { limit, offset } })
-        updateQueryTab(activeTab.id, {
-          queryResults: result,
-          limit: result.limit,
-          offset: result.offset,
-          totalRowCount: result.totalRowCount
-        })
+        if (queries.length === 1) {
+          const result = await runQueryMutation({ query: queries[0], options: { limit, offset, queryId } })
+          updateQueryTab(activeTab.id, { queryResults: result, limit: result.limit, offset: result.offset, totalRowCount: result.totalRowCount })
+        } else {
+          const results = await runManyMutation.mutateAsync({ queries, options: { limit, offset, queryId } })
+          updateQueryTab(activeTab.id, { batchResults: results, activeResultIndex: 0 })
+        }
       } catch {
-        updateQueryTab(activeTab.id, { queryResults: undefined })
+        updateQueryTab(activeTab.id, { queryResults: undefined, batchResults: undefined })
+      } finally {
+        queryIdRef.current = null
       }
     },
-    [activeTab.editorContent, activeTab.id, runQueryMutation, updateQueryTab]
+    [activeTab.id, runManyMutation, runQueryMutation, updateQueryTab]
   )
 
-  const handleRunQuery = async () => {
+  const executeQueryWithPagination = useCallback(
+    async (limit: number, offset: number, queries = getQueryAtLine(activeTab.editorContent)) => {
+      await executeQueries(queries, limit, offset)
+    },
+    [activeTab.editorContent, executeQueries]
+  )
+
+  const handleRunQuery = async (cursorLine?: number) => {
+    const queries = getQueryAtLine(activeTab.editorContent, cursorLine)
+    if (queries.length === 0) {
+      toast.error('Query cannot be empty')
+      return
+    }
+    if (hasDangerousSqlKeywords(queries.join(';\n'))) {
+      pendingQueriesRef.current = queries
+      setDangerousDialogOpen(true)
+      return
+    }
     const limit = activeTab.limit ?? 50
-    const offset = 0
-    await executeQueryWithPagination(limit, offset)
+    await executeQueryWithPagination(limit, 0, queries)
   }
 
   const handleUpdateQuery = async () => {
+    if (activeTab.isLocked) return
     const savedQuery = queries.find((q) => q.id === activeTab.id)
     if (!savedQuery) return
 
@@ -97,6 +125,7 @@ export function QueryView({ profile, activeTab }: QueryViewProps) {
   }
 
   const handleSaveQuery = async (name: string) => {
+    if (activeTab.isLocked) return
     try {
       await saveQuery(profile.id, activeTab.id, name, activeTab.editorContent)
       updateQueryTab(activeTab.id, { name, lastSavedContent: activeTab.editorContent })
@@ -116,6 +145,9 @@ export function QueryView({ profile, activeTab }: QueryViewProps) {
               onChange={(value) => updateQueryTab(activeTab.id, { editorContent: value })}
               language={profile.type}
               onExecute={handleRunQuery}
+              readOnly={activeTab.isLocked}
+              schemasWithTables={schemasWithTables}
+              tableColumns={tableColumns}
             />
           </div>
         </ResizablePanel>
@@ -123,9 +155,15 @@ export function QueryView({ profile, activeTab }: QueryViewProps) {
         <ResizablePanel defaultSize={50} minSize={30}>
           <QueryResults
             queryResults={activeTab.queryResults}
-            isLoading={isExecuting}
-            error={executionError}
+            batchResults={activeTab.batchResults}
+            activeResultIndex={activeTab.activeResultIndex}
+            isLoading={isExecuting || runManyMutation.isPending}
+            error={executionError ?? runManyMutation.error}
             onRun={handleRunQuery}
+            onCancel={() => {
+              if (queryIdRef.current) void cancelMutation.mutateAsync(queryIdRef.current)
+            }}
+            onResultSelect={(index) => updateQueryTab(activeTab.id, { activeResultIndex: index })}
           />
         </ResizablePanel>
       </ResizablePanelGroup>
@@ -150,6 +188,14 @@ export function QueryView({ profile, activeTab }: QueryViewProps) {
         open={saveDialogOpen}
         onOpenChange={setSaveDialogOpen}
         onSave={handleSaveQuery}
+      />
+      <DangerousQueryDialog
+        open={dangerousDialogOpen}
+        onOpenChange={setDangerousDialogOpen}
+        onConfirm={() => {
+          setDangerousDialogOpen(false)
+          void executeQueryWithPagination(activeTab.limit ?? 50, 0, pendingQueriesRef.current)
+        }}
       />
     </>
   )

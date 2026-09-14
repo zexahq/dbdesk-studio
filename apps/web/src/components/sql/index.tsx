@@ -23,6 +23,7 @@ export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
   const currentConnectionId = useSqlWorkspaceStore((s) => s.currentConnectionId)
   const setCurrentConnection = useSqlWorkspaceStore((s) => s.setCurrentConnection)
   const setSchemasWithTables = useSqlWorkspaceStore((s) => s.setSchemasWithTables)
+  const setTableColumns = useSqlWorkspaceStore((s) => s.setTableColumns)
   const loadFromSerialized = useTabStore((s) => s.loadFromSerialized)
   const reset = useTabStore((s) => s.reset)
   const activeTab = useTabStore((state) => {
@@ -73,6 +74,41 @@ export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
       setSchemasWithTables([])
     }
   }, [schemasWithTables, setSchemasWithTables])
+
+  useEffect(() => {
+    if (!schemasWithTables?.length) return
+    let cancelled = false
+    const targets = schemasWithTables.flatMap(({ schema, tables }) =>
+      tables.map((table) => ({ schema, table }))
+    )
+    const loadColumns = async () => {
+      let cursor = 0
+      const worker = async () => {
+        while (!cancelled) {
+          const target = targets[cursor++]
+          if (!target) return
+          const cacheKey = `${target.schema}.${target.table}`
+          if (useSqlWorkspaceStore.getState().tableColumns[cacheKey]) continue
+          try {
+            const info = await dbdeskClient.introspectTable(profile.id, target.schema, target.table)
+            if (!cancelled) {
+              setTableColumns({
+                ...useSqlWorkspaceStore.getState().tableColumns,
+                [cacheKey]: info.columns
+              })
+            }
+          } catch {
+            // Completion remains useful with the tables that did load.
+          }
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(4, targets.length) }, () => worker()))
+    }
+    void loadColumns()
+    return () => {
+      cancelled = true
+    }
+  }, [profile.id, schemasWithTables, setTableColumns])
 
   return (
     <>
