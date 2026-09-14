@@ -494,6 +494,7 @@ function SchemaDiagramCanvas({ connectionId, schemasWithTables, onOpenTable }: S
             maxZoom={1.5}
             nodesDraggable
             fitView
+            proOptions={{ hideAttribution: true }}
             className="bg-muted/20"
           >
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
