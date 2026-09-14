@@ -26,6 +26,11 @@
 
   packageRules: [
     {
+      // Dependabot's include:scope used a "deps-dev" scope for dev dependencies.
+      matchDepTypes: ["devDependencies"],
+      semanticCommitScope: "deps-dev",
+    },
+    {
       groupName: "radix-ui",
       matchPackageNames: ["@radix-ui/**"],
     },
