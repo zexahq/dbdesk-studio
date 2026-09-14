@@ -1,4 +1,5 @@
 import type { ConnectionProfile } from '@common/types'
+import { getRuntimeConfig } from '@common/config'
 import { dbdeskClient } from '@/api/client'
 import { useConnect, useDeleteConnection } from '@/api/queries/connections'
 import { Badge } from '@/components/ui/badge'
@@ -55,7 +56,7 @@ export function ConnectionCard({ profile, onEdit }: ConnectionCardProps) {
       onSuccess: async () => {
         setCurrentConnection(profile.id)
         // Remember this connection so a page reload restores the workspace.
-        setLastConnectionId(profile.id)
+        if (getRuntimeConfig().embedding.connection.restoreLastConnection) setLastConnectionId(profile.id)
 
         try {
           const savedWorkspace = await dbdeskClient.loadWorkspace(profile.id)
@@ -85,7 +86,7 @@ export function ConnectionCard({ profile, onEdit }: ConnectionCardProps) {
     if (!confirmed) return
 
     // Don't try to restore a connection we're deleting.
-    if (getLastConnectionId() === profile.id) {
+    if (getRuntimeConfig().embedding.connection.clearRememberedOnDisconnect && getLastConnectionId() === profile.id) {
       clearLastConnectionId()
     }
 

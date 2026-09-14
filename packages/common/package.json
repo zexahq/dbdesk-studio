@@ -10,10 +10,12 @@
         "./types/connection": "./types/connection.ts",
         "./types/mongodb": "./types/mongodb.ts",
         "./types/redis": "./types/redis.ts",
-        "./types/workspace": "./types/workspace.ts"
+        "./types/workspace": "./types/workspace.ts",
+        "./config": "./config/index.ts"
     },
     "dependencies": {
-        "pg": "^8.13.1"
+    "pg": "^8.13.1",
+    "yaml": "^2.8.1"
     },
     "devDependencies": {
         "@dbdesk-studio/config": "workspace:*",

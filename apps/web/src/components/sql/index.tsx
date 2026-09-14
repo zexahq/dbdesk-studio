@@ -1,4 +1,5 @@
 import type { SQLConnectionProfile } from '@common/types'
+import { isFeatureEnabled } from '@common/config'
 import { dbdeskClient } from '@/api/client'
 import { useSchemasWithTables } from '@/api/queries/schema'
 import { UnsavedChangesDialog } from '@/components/sql/dialogs/unsaved-changes-dialog'
@@ -18,6 +19,8 @@ import { TableView } from './table-view'
 import { TabNavigation } from './table-view/tab-navigation'
 import { WorkspaceSidebar } from './workspace-sidebar'
 import { WorkspaceTopbar } from './workspace-topbar'
+import { DashboardPanel } from '@/components/dashboard/dashboard-panel'
+import { SchemaVisualizer } from '@/components/schema-visualizer/schema-visualizer'
 
 export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
   const currentConnectionId = useSqlWorkspaceStore((s) => s.currentConnectionId)
@@ -32,6 +35,7 @@ export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
   })
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [activeSurface, setActiveSurface] = useState<'dashboard' | 'schema-visualizer' | null>(null)
   const { requestCloseTab, dialogProps } = useTabCloseHandler(profile)
   const lastInitializedConnectionId = useRef<string | null>(null)
 
@@ -121,7 +125,13 @@ export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
             maxSize={32}
             className={cn(!isSidebarOpen && 'hidden')}
           >
-            <WorkspaceSidebar profile={profile} />
+            <WorkspaceSidebar
+              profile={profile}
+              activeSurface={activeSurface}
+              onCloseSurface={() => setActiveSurface(null)}
+              onOpenDashboard={() => setActiveSurface('dashboard')}
+              onOpenSchemaVisualizer={() => setActiveSurface('schema-visualizer')}
+            />
           </ResizablePanel>
           <ResizableHandle withHandle className={cn(!isSidebarOpen && 'hidden')} />
           <ResizablePanel>
@@ -130,11 +140,22 @@ export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
                  profile={profile}
                  isSidebarOpen={isSidebarOpen}
                  onSidebarOpenChange={setIsSidebarOpen}
+                 onCloseSurface={() => setActiveSurface(null)}
                  requestCloseTab={requestCloseTab}
                />
 
-              {/* No tab open - empty state */}
-              {!activeTab ? (
+              {activeSurface === 'dashboard' && isFeatureEnabled('dashboard') ? (
+                <DashboardPanel profile={profile} />
+              ) : activeSurface === 'schema-visualizer' && isFeatureEnabled('schema-visualizer') ? (
+                <SchemaVisualizer
+                  profile={profile}
+                  schemasWithTables={schemasWithTables ?? []}
+                  onOpenTable={(schema, table) => {
+                    setActiveSurface(null)
+                    useTabStore.getState().addTableTab(schema, table)
+                  }}
+                />
+              ) : !activeTab ? (
                 <div className="flex flex-1 items-center justify-center">
                   <div className="text-center text-muted-foreground">
                     <p className="text-lg font-medium">No tab open</p>

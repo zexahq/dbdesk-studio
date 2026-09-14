@@ -9,3 +9,4 @@ export type { CollectionInfo, MongoDBAdapter, MongoDBConnectionOptions, MongoDBI
 export type { KeyInfo, RedisAdapter, RedisConnectionOptions, RedisKeyType } from './redis';
 export type { ConnectionProfile, DBConnectionOptions, DatabaseType, MongoDBConnectionProfile, RedisConnectionProfile, SQLConnectionProfile, SQLDatabaseType } from './connection';
 export type { ConnectionWorkspace, SavedQueriesStorage, SavedQuery, SerializedQueryTab, SerializedTab, SerializedTableTab, WorkspaceStorage } from './workspace';
+export type { DashboardConfig, DashboardExport, Widget, WidgetPosition, WidgetType } from './dashboard';

@@ -3,7 +3,7 @@ import { Home } from 'lucide-react'
 import { QuickPanel } from './quick-panel'
 import { ThemeToggle } from './theme-toggle'
 import { Button } from './ui/button'
-import { isEmbedded } from '@/lib/embedded'
+import { getRuntimeConfig } from '@common/config'
 import { clearLastConnectionId } from '@/lib/last-connection'
 
 export function MainSidebar() {
@@ -37,7 +37,7 @@ export function MainSidebar() {
           <QuickPanel />
         </div>
         <div className="flex flex-col gap-2 items-center">
-          {!isEmbedded && <ThemeToggle />}
+          {!getRuntimeConfig().embedding.ui.hideThemeControls && <ThemeToggle />}
         </div>
       </div>
     </div>

@@ -1,0 +1,64 @@
+# Runtime registry for embedded DBDesk Studio deployments.
+#
+# Third-party integration note:
+# This file is the contract between DBDesk Studio and a host application that
+# embeds it in an iframe. Keep the schema provider-neutral: Autobase is the
+# current host, but another product should be able to use the same settings.
+# The Vite build publishes this file as dist/autobase.yaml, and the browser
+# loads it before rendering the application. A host may override routing.basePath
+# at runtime through the __DBDESK_BASE_PATH__ bootstrap global.
+
+# Optional Studio surfaces can be hidden by a host without changing the app.
+# Known values currently include `dashboard` and `schema-visualizer`.
+# For an integration that should omit both surfaces, use:
+#   excluded: [dashboard, schema-visualizer]
+features:
+  excluded: []
+
+embedding:
+  # `auto` enables embedding only when Studio is inside an iframe. Use false
+  # for a standalone build or true for hosts with non-standard frame setups.
+  enabled: auto
+  # Restrict incoming postMessage traffic in production. `*` preserves the
+  # legacy behavior but should be replaced with the exact host origin when
+  # the embedding application has a stable origin.
+  allowedOrigins:
+    - "*"
+  # Origin used when Studio sends ready/status messages to its parent.
+  targetOrigin: "*"
+  messages:
+    # These names are public integration events. If renamed, the host must
+    # update its message listener at the same time.
+    ready: dbdesk-ready
+    connect: dbdesk-connect
+    connected: dbdesk-connected
+    connectError: dbdesk-connect-error
+    setTheme: dbdesk-set-theme
+  ui:
+    # Parent-controlled UI affordances. These do not change database behavior.
+    hideThemeControls: true
+    hideDisconnect: false
+  theme:
+    # Accept theme changes from the parent through the configured setTheme event.
+    syncFromParent: true
+  connection:
+    # Defaults used when the host omits optional connection fields.
+    defaultType: postgres
+    defaultPort: 5432
+    defaultDatabase: postgres
+    defaultUser: postgres
+    # Reuse a matching saved profile instead of creating a duplicate on every
+    # dbdesk-connect message. Passwords are refreshed when supplied by the host.
+    reuseExistingProfile: true
+    # Controls whether a fresh iframe load returns to the last active workspace.
+    restoreLastConnection: true
+    # Controls cleanup after an explicit disconnect/delete action.
+    clearRememberedOnDisconnect: true
+
+routing:
+  # The host can override this at runtime with __DBDESK_BASE_PATH__. This is
+  # useful when Studio is mounted below a console path such as /dbdesk/.
+  basePath: /
+  apiBasePath: ""
+  # `{connectionId}` is replaced with the profile id returned by the API.
+  postConnectPath: /connections/{connectionId}

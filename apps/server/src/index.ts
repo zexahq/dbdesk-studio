@@ -1,6 +1,7 @@
 import type {
   ColumnDefinition,
   ConnectionProfile,
+  DashboardConfig,
   DatabaseType,
   DBConnectionOptions,
   DeleteTableRowsOptions,
@@ -16,6 +17,13 @@ import cors from 'cors'
 import express, { type Application, type NextFunction, type Request, type Response } from 'express'
 import { adapterRegistry, listRegisteredAdapters } from './adapters'
 import { connectionManager, ConnectionManager } from './connectionManager'
+import {
+  deleteDashboard,
+  exportDashboards,
+  getDashboard,
+  loadDashboards,
+  saveDashboard
+} from './dashboard-storage'
 import { deleteQuery, loadQueries, saveQuery, updateQuery } from './saved-queries-storage'
 import { deleteProfile, getProfile, loadProfiles, saveProfile } from './storage'
 import { ValidationError } from './utils/errors'
@@ -699,6 +707,86 @@ app.delete(
     }
   }
 )
+
+// ============================================================================
+// Dashboard API
+// ============================================================================
+
+app.get(
+  '/api/connections/:connectionId/dashboards',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const connectionId = getRouteParam(req.params, 'connectionId')
+      res.json(await loadDashboards(connectionId))
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+app.get(
+  '/api/connections/:connectionId/dashboards/:dashboardId',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const connectionId = getRouteParam(req.params, 'connectionId')
+      const dashboardId = getRouteParam(req.params, 'dashboardId')
+      const dashboard = await getDashboard(connectionId, dashboardId)
+      if (!dashboard) {
+        res.status(404).json({ error: 'Dashboard not found' })
+        return
+      }
+      res.json(dashboard)
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+app.put(
+  '/api/connections/:connectionId/dashboards/:dashboardId',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const connectionId = getRouteParam(req.params, 'connectionId')
+      const dashboardId = getRouteParam(req.params, 'dashboardId')
+      const dashboard = req.body as Record<string, unknown>
+      if (dashboard.connectionId !== connectionId || dashboard.dashboardId !== dashboardId) {
+        res.status(400).json({ error: 'Dashboard identity does not match the URL' })
+        return
+      }
+      if (typeof dashboard.name !== 'string' || !dashboard.name.trim() || !Array.isArray(dashboard.widgets)) {
+        res.status(400).json({ error: 'Dashboard requires a name and widgets array' })
+        return
+      }
+      res.json(await saveDashboard(dashboard as unknown as DashboardConfig))
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+app.delete(
+  '/api/connections/:connectionId/dashboards/:dashboardId',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await deleteDashboard(
+        getRouteParam(req.params, 'connectionId'),
+        getRouteParam(req.params, 'dashboardId')
+      )
+      res.json({ success: true })
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+app.get('/api/dashboards/export', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const connectionId = typeof req.query.connectionId === 'string' ? req.query.connectionId : undefined
+    res.json(await exportDashboards(connectionId))
+  } catch (err) {
+    next(err)
+  }
+})
 
 // ============================================================================
 // Saved Queries API

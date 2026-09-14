@@ -21,7 +21,7 @@ import { Database, FileText, Moon, Plus, Search, Sun, Table2Icon, Unplug } from 
 import * as React from 'react'
 import { useEffect, useState } from 'react'
 import { Button } from './ui/button'
-import { isEmbedded } from '@/lib/embedded'
+import { getRuntimeConfig } from '@common/config'
 import { clearLastConnectionId } from '@/lib/last-connection'
 
 export function QuickPanel() {
@@ -95,7 +95,7 @@ export function QuickPanel() {
     await disconnect(currentConnectionId)
     setCurrentConnection(null)
     // Explicit disconnect: don't auto-restore this connection on reload.
-    clearLastConnectionId()
+    if (getRuntimeConfig().embedding.connection.clearRememberedOnDisconnect) clearLastConnectionId()
     reset()
     navigate({ to: '/' })
     setOpen(false)
@@ -145,7 +145,7 @@ export function QuickPanel() {
               {schemasWithTables.length > 0 && <CommandSeparator />}
             </>
           )}
-          {currentConnectionId && (
+          {currentConnectionId && !getRuntimeConfig().embedding.ui.hideDisconnect && (
             <CommandGroup heading="Connection Actions" className="py-2">
               <CommandItem
                 onSelect={() => {
@@ -194,7 +194,7 @@ export function QuickPanel() {
               <CommandSeparator />
             </>
           )}
-          {!isEmbedded && (
+          {!getRuntimeConfig().embedding.ui.hideThemeControls && (
             <CommandGroup heading="General Settings" className="py-2">
               <CommandItem onSelect={handleThemeToggle} className="py-2!">
                 {theme === 'light' ? (

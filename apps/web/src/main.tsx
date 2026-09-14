@@ -3,39 +3,44 @@ import ReactDOM from "react-dom/client";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/query-client";
 import { setupEmbeddedConnectListener } from "./lib/embedded";
+import { loadRuntimeConfig, getRuntimeBasePath } from "./lib/runtime-config";
 
 import { routeTree } from "./routeTree.gen";
 
-// Support being served under a sub-path (e.g. /dbdesk/ in autobase console).
-// The global is set in index.html and overridden by nginx sub_filter at runtime.
-const basepath = (window as any).__DBDESK_BASE_PATH__ || '/';
+function createAppRouter() {
+  return createRouter({
+    routeTree,
+    basepath: getRuntimeBasePath(),
+    defaultPreload: "intent",
+    context: {},
+  });
+}
 
-const router = createRouter({
-  routeTree,
-  basepath,
-  defaultPreload: "intent",
-  context: {},
-});
-
-// Register the embedded-connect postMessage listener so the parent
-// frame (e.g. autobase console) can auto-create a connection.
-setupEmbeddedConnectListener();
+type AppRouter = ReturnType<typeof createAppRouter>;
 
 declare module "@tanstack/react-router" {
   interface Register {
-    router: typeof router;
+    router: AppRouter;
   }
 }
 
-const rootElement = document.getElementById("app");
+async function bootstrap() {
+  // Load the shared third-party integration registry before creating the
+  // router or rendering UI. This prevents host behavior from being scattered
+  // across compile-time constants and component-specific conditionals.
+  await loadRuntimeConfig();
+  const router = createAppRouter();
+  setupEmbeddedConnectListener();
 
-if (!rootElement) {
-  throw new Error("Root element not found");
+  const rootElement = document.getElementById("app");
+  if (!rootElement) throw new Error("Root element not found");
+
+  if (!rootElement.innerHTML) {
+    const root = ReactDOM.createRoot(rootElement);
+    root.render(<QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>);
+  }
 }
 
-if (!rootElement.innerHTML) {
-  const root = ReactDOM.createRoot(rootElement);
-  root.render(<QueryClientProvider client={queryClient}>
-    <RouterProvider router={router} />
-  </QueryClientProvider>);
-}
+void bootstrap();

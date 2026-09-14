@@ -1,0 +1,43 @@
+# Copy this file to autobase.yaml and adjust the values for the embedding host.
+#
+# This registry is intentionally provider-neutral. It can be used by Autobase,
+# an internal console, or any other product embedding DBDesk Studio in an iframe.
+# Do not put database passwords, API keys, or other secrets in this file.
+
+features:
+  # Hide optional Studio surfaces from the host integration. Leave empty to
+  # expose all available surfaces. Known values: dashboard, schema-visualizer.
+  excluded: []
+
+embedding:
+  # `auto` detects iframe usage. Use false for standalone-only builds.
+  enabled: auto
+  # Replace `*` with the exact parent origin in production.
+  allowedOrigins:
+    - "*"
+  targetOrigin: "*"
+  messages:
+    ready: dbdesk-ready
+    connect: dbdesk-connect
+    connected: dbdesk-connected
+    connectError: dbdesk-connect-error
+    setTheme: dbdesk-set-theme
+  ui:
+    hideThemeControls: true
+    hideDisconnect: false
+  theme:
+    syncFromParent: true
+  connection:
+    defaultType: postgres
+    defaultPort: 5432
+    defaultDatabase: postgres
+    defaultUser: postgres
+    reuseExistingProfile: true
+    restoreLastConnection: true
+    clearRememberedOnDisconnect: true
+
+routing:
+  # Override with __DBDESK_BASE_PATH__ when mounted below a URL prefix.
+  basePath: /
+  apiBasePath: ""
+  postConnectPath: /connections/{connectionId}

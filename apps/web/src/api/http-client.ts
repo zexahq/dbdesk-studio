@@ -7,6 +7,8 @@ import type {
     DBConnectionOptions,
     DeleteTableResult,
     DeleteTableRowsResult,
+    DashboardConfig,
+    DashboardExport,
     ExportTableOptions,
     ExportTableResult,
     QueryResult,
@@ -21,20 +23,23 @@ import type {
     TableSortRule,
     UpdateTableCellResult
   } from '@common/types'
+  import { getRuntimeConfig } from '@common/config'
+  import { getRuntimeBasePath } from '@/lib/runtime-config'
   
-  // When served under a sub-path (e.g. /dbdesk/ in autobase console),
-  // __DBDESK_BASE_PATH__ is set at runtime by nginx sub_filter.
-  // Fall back to VITE_API_BASE_URL for standalone / dev usage.
+  // Third-party deployment boundary: API calls follow the same runtime route
+  // prefix as the router. Hosts mounted below /dbdesk/ can inject the prefix
+  // without rebuilding the application; standalone/dev usage falls back to
+  // VITE_API_BASE_URL.
   function getBaseUrl(): string {
-    const basePath = (window as any).__DBDESK_BASE_PATH__
-    if (basePath) return basePath
+    const configuredApiPath = getRuntimeConfig().routing.apiBasePath
+    if (configuredApiPath) return configuredApiPath.replace(/\/$/, '')
+    const basePath = getRuntimeBasePath()
+    if (basePath !== '/') return basePath.replace(/\/$/, '')
     return import.meta.env.VITE_API_BASE_URL ?? ''
   }
-
-  const baseUrl = getBaseUrl()
   
   async function request<T>(path: string, options: RequestInit = {}) {
-    const url = `${baseUrl}${path}`
+    const url = `${getBaseUrl()}${path}`
     const res = await fetch(url, {
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
@@ -243,6 +248,32 @@ import type {
   
     async deleteWorkspace(connectionId: string): Promise<void> {
       await request<void>(`/api/connections/${connectionId}/workspace`, { method: 'DELETE' })
+    },
+
+    async loadDashboards(connectionId: string): Promise<DashboardConfig[]> {
+      return request<DashboardConfig[]>(`/api/connections/${connectionId}/dashboards`)
+    },
+
+    async getDashboard(connectionId: string, dashboardId: string): Promise<DashboardConfig> {
+      return request<DashboardConfig>(`/api/connections/${connectionId}/dashboards/${dashboardId}`)
+    },
+
+    async saveDashboard(dashboard: DashboardConfig): Promise<DashboardConfig> {
+      return request<DashboardConfig>(
+        `/api/connections/${dashboard.connectionId}/dashboards/${dashboard.dashboardId}`,
+        { method: 'PUT', body: JSON.stringify(dashboard) }
+      )
+    },
+
+    async deleteDashboard(connectionId: string, dashboardId: string): Promise<void> {
+      await request<void>(`/api/connections/${connectionId}/dashboards/${dashboardId}`, {
+        method: 'DELETE'
+      })
+    },
+
+    async exportDashboards(connectionId?: string): Promise<DashboardExport> {
+      const query = connectionId ? `?connectionId=${encodeURIComponent(connectionId)}` : ''
+      return request<DashboardExport>(`/api/dashboards/export${query}`)
     },
   
     async loadQueries(connectionId: string): Promise<SavedQuery[]> {

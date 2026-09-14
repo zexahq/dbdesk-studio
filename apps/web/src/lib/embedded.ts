@@ -1,10 +1,21 @@
+import {
+  getRuntimeConfig,
+  interpolateConnectionPath,
+  normalizeBasePath
+} from '@common/config'
+
 /**
  * Centralized utilities for DBDesk Studio embedded mode.
  *
- * When DBDesk Studio runs inside a parent application (e.g. autobase console)
- * via an iframe, this module provides:
+ * Third-party integration boundary:
+ * When Studio runs inside a parent application (for example, Autobase) via an
+ * iframe, this module is the only place that should interpret the host
+ * postMessage protocol. Event names, origins, UI policy, and routing are read
+ * from autobase.yaml through the shared runtime registry.
  *
- *  - `isEmbedded`  — boolean flag for iframe detection
+ * This module provides:
+ *
+ *  - `isEmbedded()` — configured iframe detection
  *  - `setupEmbeddedThemeListener(setTheme)` — syncs theme from the parent
  *     via a `dbdesk-set-theme` postMessage
  *
@@ -31,15 +42,31 @@
 // Detection
 // ---------------------------------------------------------------------------
 
-/** True when running inside an iframe */
-export const isEmbedded = (() => {
+/** True when running inside an enabled embedding host. */
+export function isEmbedded(): boolean {
+  const mode = getRuntimeConfig().embedding.enabled
+  if (mode === true) return true
+  if (mode === false) return false
   try {
     return window.self !== window.top
   } catch {
     // Cross-origin iframe — we're definitely embedded
     return true
   }
-})()
+}
+
+function isAllowedParentMessage(event: MessageEvent): boolean {
+  // Do not accept messages from sibling frames or arbitrary windows. The
+  // origin allowlist is configured centrally so each host can tighten it.
+  if (!isEmbedded() || event.source !== window.parent) return false
+  const { allowedOrigins } = getRuntimeConfig().embedding
+  return allowedOrigins.includes('*') || allowedOrigins.includes(event.origin)
+}
+
+function postToParent(message: Record<string, unknown>): void {
+  // targetOrigin is deliberately configurable for hosts that do not use '*'.
+  window.parent.postMessage(message, getRuntimeConfig().embedding.targetOrigin)
+}
 
 // ---------------------------------------------------------------------------
 // Embedded theme listener
@@ -56,13 +83,16 @@ export const isEmbedded = (() => {
 export function setupEmbeddedThemeListener(
   setTheme: (theme: 'light' | 'dark') => void,
 ) {
-  if (!isEmbedded) return
+  if (!isEmbedded()) return
 
   window.addEventListener('message', (event) => {
+    const config = getRuntimeConfig()
+    if (!config.embedding.theme.syncFromParent) return
+    if (!isAllowedParentMessage(event)) return
     if (
       event.data &&
       typeof event.data === 'object' &&
-      event.data.type === 'dbdesk-set-theme' &&
+      event.data.type === config.embedding.messages.setTheme &&
       (event.data.theme === 'light' || event.data.theme === 'dark')
     ) {
       setTheme(event.data.theme)
@@ -106,19 +136,24 @@ export function setupEmbeddedThemeListener(
  * Call once at app startup. No-op when not embedded.
  */
 export function setupEmbeddedConnectListener(): void {
-  if (!isEmbedded) return
+  const config = getRuntimeConfig()
+  if (!isEmbedded()) return
 
-  console.log('[dbdesk-connect] isEmbedded:', isEmbedded)
+  console.log('[dbdesk-connect] isEmbedded:', isEmbedded())
 
   window.addEventListener('message', async (event) => {
     if (
       !event.data ||
       typeof event.data !== 'object' ||
-      event.data.type !== 'dbdesk-connect'
+      event.data.type !== config.embedding.messages.connect ||
+      !isAllowedParentMessage(event)
     ) {
       return
     }
 
+    // The connection payload is a host-to-Studio API. Do not add host-specific
+    // fields here; extend the shared contract only when another embedder needs
+    // the same capability.
     const conn = event.data.connection
     if (!conn || typeof conn !== 'object') return
 
@@ -128,7 +163,7 @@ export function setupEmbeddedConnectListener(): void {
       database,
       user,
       password,
-      type = 'postgres',
+      type = config.embedding.connection.defaultType,
       name,
     } = conn as {
       host: string
@@ -136,48 +171,67 @@ export function setupEmbeddedConnectListener(): void {
       database: string
       user: string
       password: string
-      type?: 'postgres'
+      type?: string
       name?: string
     }
 
-    const displayName = name || `${database}@${host}`
-
     try {
-      // Lazy import to avoid circular deps at module level
+      const connectionType = type === 'postgres' ? 'postgres' : config.embedding.connection.defaultType
+      if (connectionType !== 'postgres') {
+        throw new Error(`Unsupported embedded connection type: ${connectionType}`)
+      }
+      const displayName = name || `${database || config.embedding.connection.defaultDatabase}@${host}`
+
+      // Lazy import avoids a startup cycle between the host bridge and API
+      // client, and keeps standalone startup independent of the bridge.
       const { dbdeskClient } = await import('@/api/client')
 
-      // Create the connection profile
-      const profile = await dbdeskClient.createConnection(displayName, type, {
-        host,
-        port: Number(port),
-        database,
-        user,
-        password,
-      })
+      const resolvedPort = Number(port) || config.embedding.connection.defaultPort
+      const resolvedDatabase = database || config.embedding.connection.defaultDatabase
+      const resolvedUser = user || config.embedding.connection.defaultUser
+      const existingProfile = config.embedding.connection.reuseExistingProfile
+        ? (await dbdeskClient.listConnections()).find((candidate) => {
+            if (candidate.type !== 'postgres') return false
+            const options = candidate.options
+            return options.host === host && options.port === resolvedPort && options.database === resolvedDatabase && options.user === resolvedUser
+          })
+        : undefined
+
+      const profile = existingProfile
+        ? await dbdeskClient.updateConnection(existingProfile.id, displayName, 'postgres', {
+            host,
+            port: resolvedPort,
+            database: resolvedDatabase,
+            user: resolvedUser,
+            password: password || existingProfile.options.password
+          })
+        : await dbdeskClient.createConnection(displayName, 'postgres', {
+            host,
+            port: resolvedPort,
+            database: resolvedDatabase,
+            user: resolvedUser,
+            password
+          })
 
       // Connect to it
       await dbdeskClient.connect(profile.id)
 
       // Navigate to the SQL workspace
-      window.location.hash = `/connections/${profile.id}`
+      const path = interpolateConnectionPath(config.routing.postConnectPath, profile.id)
+      const basePath = normalizeBasePath(config.routing.basePath)
+      window.location.hash = `${basePath.replace(/\/$/, '')}${path}`
 
       // Notify parent of success
-      window.parent.postMessage(
-        { type: 'dbdesk-connected', connectionId: profile.id },
-        '*',
-      )
+      postToParent({ type: config.embedding.messages.connected, connectionId: profile.id })
     } catch (err) {
       console.error('[dbdesk-connect] Failed to create/connect:', err)
-      window.parent.postMessage(
-        {
-          type: 'dbdesk-connect-error',
-          error: err instanceof Error ? err.message : String(err),
-        },
-        '*',
-      )
+      postToParent({
+        type: config.embedding.messages.connectError,
+        error: err instanceof Error ? err.message : String(err)
+      })
     }
   })
 
   // Tell the parent we're ready to receive messages
-  window.parent.postMessage({ type: 'dbdesk-ready' }, '*')
+  postToParent({ type: config.embedding.messages.ready })
 }

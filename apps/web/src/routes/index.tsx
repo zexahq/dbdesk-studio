@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { getRuntimeConfig } from '@common/config'
 import { ConnectionList } from '@/components/connections/connection-list'
 import { useEffect, useRef, useState } from 'react'
 import { dbdeskClient } from '@/api/client'
@@ -52,7 +53,7 @@ function ConnectionPage() {
   // Render the restoring state immediately on the first load when a previous
   // connection is remembered, so the connections list doesn't flash first.
   const [isRestoring, setIsRestoring] = useState(
-    () => !uri && !hasAttemptedRestore && getLastConnectionId() !== null,
+    () => getRuntimeConfig().embedding.connection.restoreLastConnection && !uri && !hasAttemptedRestore && getLastConnectionId() !== null,
   )
   const lastAttemptedUri = useRef<string | null>(null)
 
@@ -107,7 +108,7 @@ function ConnectionPage() {
   // refresh keeps the user in their SQL workspace instead of resetting them
   // back to the connections list. The URI flow above takes precedence.
   useEffect(() => {
-    if (uri || hasAttemptedRestore) return
+    if (uri || hasAttemptedRestore || !getRuntimeConfig().embedding.connection.restoreLastConnection) return
     hasAttemptedRestore = true
 
     const lastId = getLastConnectionId()

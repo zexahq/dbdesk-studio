@@ -1,4 +1,5 @@
 import type { SQLConnectionProfile } from '@common/types'
+import { isFeatureEnabled } from '@common/config'
 import { SaveQueryDialog } from '@/components/dialogs/save-query-dialog'
 import { AddTableSheet } from '@/components/sql/table-view/add-table-sheet'
 import { TableOptionsDropdown } from '@/components/sql/table-view/table-options-dropdown'
@@ -34,13 +35,15 @@ import {
   ChevronRight,
   DatabaseIcon,
   FileText,
+  LayoutDashboard,
   MoreVertical,
   Pencil,
   Plus,
   RotateCw,
   SquareCode,
   Table2Icon,
-  Trash2
+  Trash2,
+  Workflow
 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
@@ -48,6 +51,10 @@ import { Button } from '../ui/button'
 
 type WorkspaceSidebarProps = {
   profile: SQLConnectionProfile
+  activeSurface: 'dashboard' | 'schema-visualizer' | null
+  onCloseSurface: () => void
+  onOpenDashboard: () => void
+  onOpenSchemaVisualizer: () => void
 }
 
 type RenameMode = {
@@ -55,7 +62,7 @@ type RenameMode = {
   queryId: string | null
 }
 
-export function WorkspaceSidebar({ profile }: WorkspaceSidebarProps) {
+export function WorkspaceSidebar({ profile, activeSurface, onCloseSurface, onOpenDashboard, onOpenSchemaVisualizer }: WorkspaceSidebarProps) {
   const [renameMode, setRenameMode] = useState<RenameMode>({ open: false, queryId: null })
 
   const schemasWithTables = useSqlWorkspaceStore((s) => s.schemasWithTables)
@@ -113,10 +120,12 @@ export function WorkspaceSidebar({ profile }: WorkspaceSidebarProps) {
   }, [setSidebarViewMode])
 
   const handleTableClick = (schema: string, table: string) => {
+    onCloseSurface()
     addTableTab(schema, table)
   }
 
   const handleLoadQuery = (query: (typeof queries)[0]) => {
+    onCloseSurface()
     const existingTab = findQueryTabById(query.id)
     if (existingTab) {
       setActiveTab(existingTab.id)
@@ -174,6 +183,7 @@ export function WorkspaceSidebar({ profile }: WorkspaceSidebarProps) {
   const selectedQuery = renameMode.queryId ? queries.find((q) => q.id === renameMode.queryId) : null
 
   const handleNewQuery = () => {
+    onCloseSurface()
     addQueryTab()
   }
 
@@ -217,6 +227,12 @@ export function WorkspaceSidebar({ profile }: WorkspaceSidebarProps) {
                 <FileText className="size-3.5" /> Queries
               </Button>
             </div>
+            {(isFeatureEnabled('dashboard') || isFeatureEnabled('schema-visualizer')) && (
+              <div className="grid grid-cols-2 gap-1">
+                {isFeatureEnabled('dashboard') && <Button variant={activeSurface === 'dashboard' ? 'secondary' : 'ghost'} className="h-8 justify-start gap-2 text-xs" onClick={onOpenDashboard} title="Dashboards"><LayoutDashboard className="size-3.5" /> Dashboards</Button>}
+                {isFeatureEnabled('schema-visualizer') && <Button variant={activeSurface === 'schema-visualizer' ? 'secondary' : 'ghost'} className="h-8 justify-start gap-2 text-xs" onClick={onOpenSchemaVisualizer} title="Schema visualizer"><Workflow className="size-3.5" /> Diagram</Button>}
+              </div>
+            )}
           </SidebarGroup>
         </SidebarHeader>
         <SidebarSeparator />

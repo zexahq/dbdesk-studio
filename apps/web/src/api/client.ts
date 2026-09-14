@@ -6,6 +6,8 @@ import type {
   DatabaseType,
   DBConnectionOptions,
   DeleteTableResult,
+  DashboardConfig,
+  DashboardExport,
   DeleteTableRowsResult,
   ExportTableOptions,
   ExportTableResult,
@@ -169,6 +171,26 @@ export const dbdeskClient = {
 
   async deleteWorkspace(connectionId: string): Promise<void> {
     return getDbdesk().deleteWorkspace(connectionId)
+  },
+
+  async loadDashboards(connectionId: string): Promise<DashboardConfig[]> {
+    return getDbdesk().loadDashboards(connectionId)
+  },
+
+  async getDashboard(connectionId: string, dashboardId: string): Promise<DashboardConfig> {
+    return getDbdesk().getDashboard(connectionId, dashboardId)
+  },
+
+  async saveDashboard(dashboard: DashboardConfig): Promise<DashboardConfig> {
+    return getDbdesk().saveDashboard(dashboard)
+  },
+
+  async deleteDashboard(connectionId: string, dashboardId: string): Promise<void> {
+    await getDbdesk().deleteDashboard(connectionId, dashboardId)
+  },
+
+  async exportDashboards(connectionId?: string): Promise<DashboardExport> {
+    return getDbdesk().exportDashboards(connectionId)
   },
 
   async loadQueries(connectionId: string): Promise<SavedQuery[]> {

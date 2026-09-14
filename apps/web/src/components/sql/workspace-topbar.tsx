@@ -15,6 +15,7 @@ import { useWorkspaceTabs } from '@/hooks/use-workspace-tabs'
 import { useSqlWorkspaceStore } from '@/store/sql-workspace-store'
 import type { Tab } from '@/store/tab-store'
 import { clearLastConnectionId } from '@/lib/last-connection'
+import { getRuntimeConfig } from '@common/config'
 import { useRouter } from '@tanstack/react-router'
 import { PanelLeftClose, PanelLeftOpen, Plus, Unplug } from 'lucide-react'
 import { useCallback, useMemo } from 'react'
@@ -24,6 +25,7 @@ interface WorkspaceTopbarProps {
   profile: SQLConnectionProfile
   isSidebarOpen: boolean
   onSidebarOpenChange: (open: boolean) => void
+  onCloseSurface: () => void
   requestCloseTab: (tab: Tab) => void
 }
 
@@ -31,6 +33,7 @@ export function WorkspaceTopbar({
   profile,
   isSidebarOpen,
   onSidebarOpenChange,
+  onCloseSurface,
   requestCloseTab
 }: WorkspaceTopbarProps) {
   const router = useRouter()
@@ -45,13 +48,23 @@ export function WorkspaceTopbar({
     requestCloseTab(tab)
   }
 
+  const handleTabSelect = (tabId: string) => {
+    onCloseSurface()
+    handleTabClick(tabId)
+  }
+
+  const handleNewQuery = () => {
+    onCloseSurface()
+    handleAddQueryTab()
+  }
+
   const handleDisconnect = async () => {
     disconnect(profile.id, {
       onSuccess: () => {
         resetWorkspace()
         reset()
         // Explicit disconnect: don't auto-restore this connection on reload.
-        clearLastConnectionId()
+        if (getRuntimeConfig().embedding.connection.clearRememberedOnDisconnect) clearLastConnectionId()
         router.navigate({ to: '/' })
       }
     })
@@ -86,11 +99,11 @@ export function WorkspaceTopbar({
       <TabNavigation
         profile={profile}
         requestCloseTab={handleCloseTab}
-        onTabClick={handleTabClick}
-        onAddQueryTab={handleAddQueryTab}
+        onTabClick={handleTabSelect}
+        onAddQueryTab={handleNewQuery}
       />
       <div className="border-b h-10 bg-muted/20 flex items-center">
-        <Button
+        {!getRuntimeConfig().embedding.ui.hideDisconnect && <Button
           variant="ghost"
           size="icon"
           className="h-full w-10 rounded-none border-r border-border/50 shrink-0"
@@ -102,7 +115,7 @@ export function WorkspaceTopbar({
             <PanelLeftOpen className="size-4" />
           )}
           <span className="sr-only">Toggle sidebar</span>
-        </Button>
+        </Button>}
 
         <div className="flex-1 h-full overflow-x-auto no-scrollbar">
           <DndContext
@@ -118,12 +131,12 @@ export function WorkspaceTopbar({
                     tab={tab}
                     isActive={isActive}
                     isDirty={isDirty}
-                    onClick={() => handleTabClick(tab.id)}
+                    onClick={() => handleTabSelect(tab.id)}
                     onClose={() => handleCloseTab(tab)}
                   />
                 ))}
                 <button
-                  onClick={handleAddQueryTab}
+                  onClick={handleNewQuery}
                   className="flex items-center justify-center h-full w-10 border-r border-border/50 hover:bg-background/60 cursor-pointer shrink-0"
                   title="New Query"
                 >

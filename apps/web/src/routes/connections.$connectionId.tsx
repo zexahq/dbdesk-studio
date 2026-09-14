@@ -1,4 +1,5 @@
 import { useConnection } from '@/api/queries/connections'
+import { getRuntimeConfig } from '@common/config'
 import { dbdeskClient } from '@/api/client'
 import { SqlWorkspace } from '@/components/sql'
 import { Button } from '@/components/ui/button'
@@ -42,7 +43,7 @@ function ConnectionPage() {
     if (!profile) return
 
     if (alreadyConnected) {
-      setLastConnectionId(connectionId)
+      if (getRuntimeConfig().embedding.connection.restoreLastConnection) setLastConnectionId(connectionId)
       setIsEnsuring(false)
       return
     }
@@ -58,7 +59,7 @@ function ConnectionPage() {
       .connect(connectionId)
       .then(() => {
         if (cancelled) return
-        setLastConnectionId(connectionId)
+        if (getRuntimeConfig().embedding.connection.restoreLastConnection) setLastConnectionId(connectionId)
         setIsEnsuring(false)
       })
       .catch((err) => {
@@ -81,7 +82,7 @@ function ConnectionPage() {
   }
 
   const handleBackToConnections = () => {
-    clearLastConnectionId()
+    if (getRuntimeConfig().embedding.connection.clearRememberedOnDisconnect) clearLastConnectionId()
     navigate({ to: '/', replace: true })
   }
 
