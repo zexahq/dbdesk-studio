@@ -1,19 +1,19 @@
 import type { ColumnInfo, SchemaWithTables } from '@common/types'
 import { create } from 'zustand'
 
-export type WorkspaceSurface = 'dashboard' | 'schema-visualizer' | null
+export type WorkspaceSurface = null
 
 interface SqlWorkspaceStore {
   currentConnectionId: string | null
   schemasWithTables: SchemaWithTables[]
   tableColumns: Record<string, ColumnInfo[]>
-  sidebarViewMode: 'schemas' | 'queries'
+  sidebarViewMode: 'schemas' | 'queries' | 'dashboards'
   activeSurface: WorkspaceSurface
 
   setCurrentConnection: (connectionId: string | null) => void
   setSchemasWithTables: (schemas: SchemaWithTables[]) => void
   setTableColumns: (tableColumns: Record<string, ColumnInfo[]>) => void
-  setSidebarViewMode: (mode: 'schemas' | 'queries') => void
+  setSidebarViewMode: (mode: 'schemas' | 'queries' | 'dashboards') => void
   setActiveSurface: (surface: WorkspaceSurface) => void
   reset: () => void
 }

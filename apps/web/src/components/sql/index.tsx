@@ -1,5 +1,5 @@
 import type { SQLConnectionProfile } from '@common/types'
-import { getRuntimeConfig, isFeatureEnabled } from '@common/config'
+import { getRuntimeConfig } from '@common/config'
 import { dbdeskClient } from '@/api/client'
 import { useSchemasWithTables } from '@/api/queries/schema'
 import { UnsavedChangesDialog } from '@/components/sql/dialogs/unsaved-changes-dialog'
@@ -13,14 +13,25 @@ import { cn } from '@/lib/utils'
 import { useTabCloseHandler } from '@/hooks/use-tab-close-handler'
 import { useSqlWorkspaceStore } from '@/store/sql-workspace-store'
 import { useTabStore } from '@/store/tab-store'
-import { useEffect, useRef, useState } from 'react'
+import { useDashboardStore } from '@/store/dashboard-store'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { QueryView } from './query-view'
 import { TableView } from './table-view'
 import { TabNavigation } from './table-view/tab-navigation'
 import { WorkspaceSidebar } from './workspace-sidebar'
 import { WorkspaceTopbar } from './workspace-topbar'
-import { DashboardPanel } from '@/components/dashboard/dashboard-panel'
-import { SchemaVisualizer } from '@/components/schema-visualizer/schema-visualizer'
+
+// Keep the large grid/chart and diagram libraries out of the normal query
+// workspace bundle. They are fetched only after their respective tab opens.
+const DashboardCanvas = lazy(() =>
+  import('@/components/dashboard').then(({ DashboardCanvas }) => ({ default: DashboardCanvas }))
+)
+const SchemaDiagram = lazy(() =>
+  import('@/features/schema-visualizer/components/schema-diagram').then(({ SchemaDiagram }) => ({
+    default: SchemaDiagram
+  }))
+)
 
 export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
   const currentConnectionId = useSqlWorkspaceStore((s) => s.currentConnectionId)
@@ -33,14 +44,20 @@ export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
     const { tabs, activeTabId } = state
     return tabs.find((t) => t.id === activeTabId)
   })
+  const queryClient = useQueryClient()
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => !getRuntimeConfig().embedding.ui.hideSidebar)
-  const activeSurface = useSqlWorkspaceStore((s) => s.activeSurface)
   const setActiveSurface = useSqlWorkspaceStore((s) => s.setActiveSurface)
   const { requestCloseTab, dialogProps } = useTabCloseHandler(profile)
   const lastInitializedConnectionId = useRef<string | null>(null)
 
   const { data: schemasWithTables } = useSchemasWithTables(profile.id)
+  const activeDashboardId = activeTab?.kind === 'dashboard' ? activeTab.dashboardId : null
+  const { data: dashboardConfig } = useQuery({
+    queryKey: ['dashboard', 'tab', profile.id, activeDashboardId],
+    queryFn: () => dbdeskClient.getDashboard(profile.id, activeDashboardId!),
+    enabled: Boolean(activeDashboardId)
+  })
 
   // Sync connectionId from route to store and load workspace on mount/connection change
   useEffect(() => {
@@ -142,18 +159,7 @@ export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
                  requestCloseTab={requestCloseTab}
                />
 
-              {activeSurface === 'dashboard' && isFeatureEnabled('dashboard') ? (
-                <DashboardPanel profile={profile} />
-              ) : activeSurface === 'schema-visualizer' && isFeatureEnabled('schema-visualizer') ? (
-                <SchemaVisualizer
-                  profile={profile}
-                  schemasWithTables={schemasWithTables ?? []}
-                  onOpenTable={(schema, table) => {
-                    setActiveSurface(null)
-                    useTabStore.getState().addTableTab(schema, table)
-                  }}
-                />
-              ) : !activeTab ? (
+              {!activeTab ? (
                 <div className="flex flex-1 items-center justify-center">
                   <div className="text-center text-muted-foreground">
                     <p className="text-lg font-medium">No tab open</p>
@@ -164,6 +170,38 @@ export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
                 <TableView profile={profile} activeTab={activeTab} />
               ) : activeTab?.kind === 'query' ? (
                 <QueryView profile={profile} activeTab={activeTab} />
+              ) : activeTab?.kind === 'dashboard' ? (
+                dashboardConfig ? (
+                  <Suspense fallback={<WorkspaceSurfaceLoading label="Loading dashboard…" />}>
+                    <DashboardCanvas
+                      dashboard={dashboardConfig}
+                      connectionId={profile.id}
+                      onSave={async (config) => {
+                        const saved = await useDashboardStore.getState().saveDashboard(config)
+                        queryClient.setQueryData(
+                          ['dashboard', 'tab', profile.id, config.dashboardId],
+                          saved
+                        )
+                      }}
+                      onClose={() => {
+                        useTabStore.getState().removeTab(activeTab.id)
+                        useDashboardStore.getState().setCurrentDashboard(null)
+                      }}
+                    />
+                  </Suspense>
+                ) : (
+                  <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+                    Loading dashboard…
+                  </div>
+                )
+              ) : activeTab?.kind === 'schema-diagram' ? (
+                <Suspense fallback={<WorkspaceSurfaceLoading label="Loading schema diagram…" />}>
+                  <SchemaDiagram
+                    connectionId={profile.id}
+                    schemasWithTables={schemasWithTables ?? []}
+                    onOpenTable={(schema, table) => useTabStore.getState().addTableTab(schema, table)}
+                  />
+                </Suspense>
               ) : null}
             </SidebarInset>
           </ResizablePanel>
@@ -172,4 +210,8 @@ export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
       <UnsavedChangesDialog {...dialogProps} />
     </>
   )
+}
+
+function WorkspaceSurfaceLoading({ label }: { label: string }) {
+  return <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">{label}</div>
 }

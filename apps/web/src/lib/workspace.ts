@@ -1,7 +1,7 @@
 import type { ConnectionWorkspace } from '@common/types'
-import { dbdeskClient } from '@renderer/api/client'
-import { useSqlWorkspaceStore } from '@renderer/store/sql-workspace-store'
-import { useTabStore } from '@renderer/store/tab-store'
+import { dbdeskClient } from '@/api/client'
+import { useSqlWorkspaceStore } from '@/store/sql-workspace-store'
+import { useTabStore } from '@/store/tab-store'
 
 export async function saveCurrentWorkspace() {
   const currentConnectionId = useSqlWorkspaceStore.getState().currentConnectionId
@@ -25,16 +25,6 @@ export async function saveCurrentWorkspace() {
 }
 
 export const registerWorkspaceFlushListener = () => {
-  const ipcRenderer = window.electron?.ipcRenderer
-  if (!ipcRenderer) return
-
-  const channel = 'workspace:flush'
-  ipcRenderer.removeAllListeners(channel)
-
-  ipcRenderer.on(channel, () => {
-    void (async () => {
-      await saveCurrentWorkspace()
-      ipcRenderer.send('workspace:flushed')
-    })()
-  })
+  // Studio is browser-hosted; workspace persistence is handled by its regular
+  // debounced save flow instead of Electron's shutdown IPC event.
 }

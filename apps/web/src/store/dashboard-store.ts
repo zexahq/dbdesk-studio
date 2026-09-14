@@ -1,78 +1,154 @@
-import type { DashboardConfig, Widget, WidgetType } from '@common/types'
+/**
+ * Dashboard Store
+ * Manages dashboard UI state using Zustand
+ *
+ * NOTE: This store focuses on UI state (current dashboard, mode, etc.)
+ * Data fetching/caching should use TanStack Query directly in components.
+ * The store provides mutation helpers that work with the query cache and
+ * automatically invalidate the dashboard list query key after mutations.
+ */
+
 import { create } from 'zustand'
 import { dbdeskClient } from '@/api/client'
+import { createId } from '@/lib/utils'
+import { queryClient } from '@/lib/query-client'
+import type { DashboardConfig, Widget } from '@common/types'
 
-function createId(prefix: string): string {
-  return `${prefix}-${crypto.randomUUID()}`
+// Query key constant for consistency across the app
+export const DASHBOARD_QUERY_KEYS = {
+  list: (connectionId: string) => ['dashboards', connectionId] as const,
+  detail: (connectionId: string, dashboardId: string) =>
+    ['dashboard', connectionId, dashboardId] as const
 }
 
-function createDashboard(connectionId: string, name: string): DashboardConfig {
-  const now = new Date()
-  return {
-    dashboardId: createId('dashboard'),
-    connectionId,
-    name,
-    widgets: [],
-    createdAt: now,
-    updatedAt: now
-  }
-}
-
-export interface DashboardStore {
+interface DashboardStore {
+  // Current dashboard being edited/viewed
   currentDashboard: DashboardConfig | null
+
+  // UI state
+  isLoading: boolean
+  error: string | null
+
+  // Local state actions
   setCurrentDashboard: (dashboard: DashboardConfig | null) => void
-  createDashboard: (connectionId: string, name: string) => Promise<DashboardConfig>
+  updateCurrentDashboardWidgets: (widgets: Widget[]) => void
+  setLoading: (loading: boolean) => void
+  setError: (error: string | null) => void
+  reset: () => void
+
+  // Mutation helpers (not for data fetching - use TanStack Query for that)
+  createDashboard: (
+    connectionId: string,
+    name: string,
+    description?: string
+  ) => Promise<DashboardConfig>
   saveDashboard: (dashboard: DashboardConfig) => Promise<DashboardConfig>
   deleteDashboard: (connectionId: string, dashboardId: string) => Promise<void>
-  addWidget: (dashboard: DashboardConfig, type: WidgetType) => Promise<DashboardConfig>
-  updateWidget: (dashboard: DashboardConfig, widget: Widget) => Promise<DashboardConfig>
-  removeWidget: (dashboard: DashboardConfig, widgetId: string) => Promise<DashboardConfig>
-  reset: () => void
+
+  // Export/Import
+  exportDashboards: (
+    connectionId?: string
+  ) => Promise<{ version: string; exportedAt: string; dashboards: DashboardConfig[] }>
 }
 
-export const useDashboardStore = create<DashboardStore>((set, get) => ({
+export const useDashboardStore = create<DashboardStore>((set) => ({
   currentDashboard: null,
-  setCurrentDashboard: (currentDashboard) => set({ currentDashboard }),
-  createDashboard: async (connectionId, name) => {
-    const saved = await dbdeskClient.saveDashboard(createDashboard(connectionId, name))
-    set({ currentDashboard: saved })
-    return saved
-  },
-  saveDashboard: async (dashboard) => {
-    const saved = await dbdeskClient.saveDashboard({ ...dashboard, updatedAt: new Date() })
-    set({ currentDashboard: saved })
-    return saved
-  },
-  deleteDashboard: async (connectionId, dashboardId) => {
-    await dbdeskClient.deleteDashboard(connectionId, dashboardId)
+  isLoading: false,
+  error: null,
+
+  // Local state actions
+  setCurrentDashboard: (dashboard) => set({ currentDashboard: dashboard, error: null }),
+
+  updateCurrentDashboardWidgets: (widgets) =>
     set((state) => ({
-      currentDashboard:
-        state.currentDashboard?.dashboardId === dashboardId ? null : state.currentDashboard
-    }))
-  },
-  addWidget: async (dashboard, type) => {
-    const widget: Widget = {
-      id: createId('widget'),
-      type,
-      title: type === 'barChart' ? 'Bar chart' : `${type[0].toUpperCase()}${type.slice(1)}`,
-      queryId: null,
-      position: { x: 0, y: dashboard.widgets.length, w: 1, h: 1 },
-      settings: { query: '', valueField: '', labelField: '' }
+      currentDashboard: state.currentDashboard
+        ? { ...state.currentDashboard, widgets, updatedAt: new Date() }
+        : null
+    })),
+
+  setLoading: (isLoading) => set({ isLoading }),
+
+  setError: (error) => set({ error }),
+
+  reset: () =>
+    set({
+      currentDashboard: null,
+      isLoading: false,
+      error: null
+    }),
+
+  // Mutation helpers
+  createDashboard: async (connectionId: string, name: string, description?: string) => {
+    const now = new Date()
+    const newDashboard: DashboardConfig = {
+      dashboardId: createId('dashboard'),
+      connectionId,
+      name,
+      description,
+      layout: {
+        columns: 12,
+        rowHeight: 80,
+        margin: [16, 16],
+        containerPadding: [0, 0]
+      },
+      widgets: [],
+      createdAt: now,
+      updatedAt: now
     }
-    return get().saveDashboard({
-      ...dashboard,
-      widgets: [...dashboard.widgets, widget]
-    })
+
+    try {
+      const saved = await dbdeskClient.saveDashboard(newDashboard)
+      set({ currentDashboard: saved, error: null })
+      queryClient.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEYS.list(connectionId) })
+      return saved
+    } catch (err) {
+      const error = err instanceof Error ? err.message : 'Failed to create dashboard'
+      set({ error })
+      throw err
+    }
   },
-  updateWidget: async (dashboard, widget) =>
-    get().saveDashboard({
-      ...dashboard,
-      widgets: dashboard.widgets.map((item) => (item.id === widget.id ? widget : item))
-    }),
-  removeWidget: async (dashboard, widgetId) =>
-    get().saveDashboard({
-      ...dashboard,
-      widgets: dashboard.widgets.filter((item) => item.id !== widgetId)
-    }),
-  reset: () => set({ currentDashboard: null })
+
+  saveDashboard: async (dashboard: DashboardConfig) => {
+    try {
+      const saved = await dbdeskClient.saveDashboard(dashboard)
+
+      // Update current dashboard if it's the one being saved
+      set((state) => ({
+        currentDashboard:
+          state.currentDashboard?.dashboardId === saved.dashboardId
+            ? saved
+            : state.currentDashboard,
+        error: null
+      }))
+
+      queryClient.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEYS.list(dashboard.connectionId) })
+      return saved
+    } catch (err) {
+      const error = err instanceof Error ? err.message : 'Failed to save dashboard'
+      set({ error })
+      throw err
+    }
+  },
+
+  deleteDashboard: async (connectionId: string, dashboardId: string) => {
+    try {
+      const result = await dbdeskClient.deleteDashboard(connectionId, dashboardId)
+
+      // Clear current dashboard if it was deleted
+      set((state) => ({
+        currentDashboard:
+          state.currentDashboard?.dashboardId === dashboardId ? null : state.currentDashboard,
+        error: null
+      }))
+
+      queryClient.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEYS.list(connectionId) })
+      return result
+    } catch (err) {
+      const error = err instanceof Error ? err.message : 'Failed to delete dashboard'
+      set({ error })
+      throw err
+    }
+  },
+
+  exportDashboards: (connectionId?: string) => dbdeskClient.exportDashboards(connectionId)
 }))

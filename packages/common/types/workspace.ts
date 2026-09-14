@@ -23,7 +23,24 @@ export interface SerializedQueryTab {
   isLocked?: boolean
 }
 
-export type SerializedTab = SerializedTableTab | SerializedQueryTab
+export interface SerializedDashboardTab {
+  kind: 'dashboard'
+  id: string
+  dashboardId: string
+  name: string
+}
+
+export interface SerializedSchemaDiagramTab {
+  kind: 'schema-diagram'
+  id: string
+  name: string
+}
+
+export type SerializedTab =
+  | SerializedTableTab
+  | SerializedQueryTab
+  | SerializedDashboardTab
+  | SerializedSchemaDiagramTab
 
 export interface SavedQuery {
   id: string
