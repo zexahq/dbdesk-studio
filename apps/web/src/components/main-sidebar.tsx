@@ -7,13 +7,13 @@ import { getRuntimeConfig } from '@common/config'
 import { clearLastConnectionId } from '@/lib/last-connection'
 import { isFeatureEnabled } from '@common/config'
 import { useSqlWorkspaceStore } from '@/store/sql-workspace-store'
+import { useTabStore } from '@/store/tab-store'
 
 export function MainSidebar() {
   const currentConnectionId = useSqlWorkspaceStore((s) => s.currentConnectionId)
   const sidebarViewMode = useSqlWorkspaceStore((s) => s.sidebarViewMode)
-  const activeSurface = useSqlWorkspaceStore((s) => s.activeSurface)
   const setSidebarViewMode = useSqlWorkspaceStore((s) => s.setSidebarViewMode)
-  const setActiveSurface = useSqlWorkspaceStore((s) => s.setActiveSurface)
+  const addSchemaDiagramTab = useTabStore((s) => s.addSchemaDiagramTab)
   if (getRuntimeConfig().embedding.ui.hideSidebar) return null
   // Deliberately leaving a workspace for the connections list: forget the
   // remembered connection so a later reload keeps the user on the list
@@ -46,45 +46,45 @@ export function MainSidebar() {
           {currentConnectionId && (
             <div className="mt-2 flex flex-col gap-1 border-t border-border/50 pt-2">
               <Button
-                variant={sidebarViewMode === 'schemas' && activeSurface === null ? 'secondary' : 'ghost'}
+                variant={sidebarViewMode === 'schemas' ? 'secondary' : 'ghost'}
                 size="icon"
                 className="cursor-pointer"
                 title="Schemas"
                 aria-label="Schemas"
-                onClick={() => { setActiveSurface(null); setSidebarViewMode('schemas') }}
+                onClick={() => setSidebarViewMode('schemas')}
               >
                 <DatabaseIcon className="size-4" />
               </Button>
               <Button
-                variant={sidebarViewMode === 'queries' && activeSurface === null ? 'secondary' : 'ghost'}
+                variant={sidebarViewMode === 'queries' ? 'secondary' : 'ghost'}
                 size="icon"
                 className="cursor-pointer"
                 title="Queries"
                 aria-label="Queries"
-                onClick={() => { setActiveSurface(null); setSidebarViewMode('queries') }}
+                onClick={() => setSidebarViewMode('queries')}
               >
                 <FileText className="size-4" />
               </Button>
               {isFeatureEnabled('dashboard') && (
                 <Button
-                  variant={activeSurface === 'dashboard' ? 'secondary' : 'ghost'}
+                  variant={sidebarViewMode === 'dashboards' ? 'secondary' : 'ghost'}
                   size="icon"
                   className="cursor-pointer"
                   title="Dashboards"
                   aria-label="Dashboards"
-                  onClick={() => setActiveSurface('dashboard')}
+                  onClick={() => setSidebarViewMode('dashboards')}
                 >
                   <LayoutDashboard className="size-4" />
                 </Button>
               )}
               {isFeatureEnabled('schema-visualizer') && (
                 <Button
-                  variant={activeSurface === 'schema-visualizer' ? 'secondary' : 'ghost'}
+                  variant="ghost"
                   size="icon"
                   className="cursor-pointer"
                   title="Diagram"
                   aria-label="Diagram"
-                  onClick={() => setActiveSurface('schema-visualizer')}
+                  onClick={addSchemaDiagramTab}
                 >
                   <Workflow className="size-4" />
                 </Button>

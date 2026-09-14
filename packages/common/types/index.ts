@@ -63,11 +63,28 @@ export type {
   ConnectionWorkspace,
   SavedQueriesStorage,
   SavedQuery,
+  SerializedDashboardTab,
   SerializedQueryTab,
+  SerializedSchemaDiagramTab,
   SerializedTab,
   SerializedTableTab,
   WorkspaceStorage
 } from './workspace'
 
 // Dashboard types
-export type { DashboardConfig, DashboardExport, Widget, WidgetPosition, WidgetType } from './dashboard'
+export type {
+  ChartWidgetSettings,
+  DashboardConfig,
+  DashboardExport,
+  DashboardLayout,
+  KPIWidgetSettings,
+  NotesWidgetSettings,
+  PieChartWidgetSettings,
+  SavedQueriesWidgetSettings,
+  ScatterWidgetSettings,
+  TableWidgetSettings,
+  Widget,
+  WidgetPosition,
+  WidgetSettings,
+  WidgetType
+} from './dashboard'

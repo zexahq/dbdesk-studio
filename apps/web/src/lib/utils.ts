@@ -5,6 +5,10 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export function createId(prefix: string) {
+  return `${prefix}-${crypto.randomUUID()}`
+}
+
 export function cleanErrorMessage(message: string): string {
   // Remove Electron IPC wrapper (e.g., "Error invoking remote method 'query:run': QueryError: actual message")
   let cleaned = message.replace(/^Error invoking remote method '[^']+': /, '')

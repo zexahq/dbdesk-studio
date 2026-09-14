@@ -2,7 +2,7 @@ import type { Tab } from '@/store/tab-store'
 import { useTabStore } from '@/store/tab-store'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { Lock, SquareCode, Table2Icon, Unlock, X } from 'lucide-react'
+import { LayoutDashboard, Lock, SquareCode, Table2Icon, Unlock, Workflow, X } from 'lucide-react'
 
 interface SortableTabButtonProps {
   tab: Tab
@@ -48,6 +48,10 @@ export function SortableTabButton({ tab, isActive, isDirty, onClick, onClose }: 
     >
       {tab.kind === 'table' ? (
         <Table2Icon className="size-3.5 shrink-0" />
+      ) : tab.kind === 'dashboard' ? (
+        <LayoutDashboard className="size-3.5 shrink-0" />
+      ) : tab.kind === 'schema-diagram' ? (
+        <Workflow className="size-3.5 shrink-0" />
       ) : (
         <SquareCode className="size-3.5 shrink-0" />
       )}

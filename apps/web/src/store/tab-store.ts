@@ -1,7 +1,9 @@
 import type {
   QueryBatchResult,
   QueryResult,
+  SerializedDashboardTab,
   SerializedQueryTab,
+  SerializedSchemaDiagramTab,
   SerializedTab,
   SerializedTableTab,
   TableFilterCondition,
@@ -19,7 +21,7 @@ function generateUUID(): string {
 
 export interface BaseTab {
   id: string
-  kind: 'table' | 'query'
+  kind: 'table' | 'query' | 'dashboard' | 'schema-diagram'
 }
 
 export interface TableTab extends BaseTab {
@@ -50,7 +52,18 @@ export interface QueryTab extends BaseTab {
   isDirty: boolean
 }
 
-export type Tab = TableTab | QueryTab
+export interface DashboardTab extends BaseTab {
+  kind: 'dashboard'
+  dashboardId: string
+  name: string
+}
+
+export interface SchemaDiagramTab extends BaseTab {
+  kind: 'schema-diagram'
+  name: string
+}
+
+export type Tab = TableTab | QueryTab | DashboardTab | SchemaDiagramTab
 
 interface TabStore {
   tabs: Tab[]
@@ -74,6 +87,12 @@ interface TabStore {
   updateQueryTab: (tabId: string, updates: Partial<Omit<QueryTab, 'kind'>>) => void
   toggleQueryTabLock: (tabId: string) => void
   findQueryTabById: (tabId: string) => QueryTab | undefined
+
+  // Dashboard and schema diagram tabs mirror dbdesk's workspace behavior.
+  addDashboardTab: (dashboardId: string, name: string) => string
+  updateDashboardTab: (tabId: string, updates: Partial<Pick<DashboardTab, 'name'>>) => void
+  findDashboardTabById: (dashboardId: string) => DashboardTab | undefined
+  addSchemaDiagramTab: () => string
 
   // Persistence
   loadFromSerialized: (tabs: SerializedTab[], activeTabId: string | null) => void
@@ -256,6 +275,56 @@ export const useTabStore = create<TabStore>((set, get) => ({
     return tab?.kind === 'query' ? tab : undefined
   },
 
+  addDashboardTab: (dashboardId: string, name: string) => {
+    const existing = get().tabs.find(
+      (tab) => tab.kind === 'dashboard' && tab.dashboardId === dashboardId
+    )
+    if (existing) {
+      set({ activeTabId: existing.id })
+      return existing.id
+    }
+
+    const newTab: DashboardTab = {
+      id: generateUUID(),
+      kind: 'dashboard',
+      dashboardId,
+      name
+    }
+    set((state) => ({ tabs: [...state.tabs, newTab], activeTabId: newTab.id }))
+    return newTab.id
+  },
+
+  updateDashboardTab: (tabId: string, updates) => {
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === tabId && tab.kind === 'dashboard' ? { ...tab, ...updates } : tab
+      )
+    }))
+  },
+
+  findDashboardTabById: (dashboardId: string) => {
+    const tab = get().tabs.find(
+      (item) => item.kind === 'dashboard' && item.dashboardId === dashboardId
+    )
+    return tab?.kind === 'dashboard' ? tab : undefined
+  },
+
+  addSchemaDiagramTab: () => {
+    const existing = get().tabs.find((tab) => tab.kind === 'schema-diagram')
+    if (existing) {
+      set({ activeTabId: existing.id })
+      return existing.id
+    }
+
+    const newTab: SchemaDiagramTab = {
+      id: 'schema-diagram',
+      kind: 'schema-diagram',
+      name: 'Schema Diagram'
+    }
+    set((state) => ({ tabs: [...state.tabs, newTab], activeTabId: newTab.id }))
+    return newTab.id
+  },
+
   // Persistence
   loadFromSerialized: (serializedTabs: SerializedTab[], activeTabId: string | null) => {
     const tabs: Tab[] = serializedTabs.map((serializedTab) => {
@@ -263,6 +332,19 @@ export const useTabStore = create<TabStore>((set, get) => ({
         return {
           ...serializedTab
         } as TableTab
+      } else if (serializedTab.kind === 'dashboard') {
+        return {
+          id: serializedTab.id,
+          kind: 'dashboard',
+          dashboardId: serializedTab.dashboardId,
+          name: serializedTab.name
+        } as DashboardTab
+      } else if (serializedTab.kind === 'schema-diagram') {
+        return {
+          id: serializedTab.id,
+          kind: 'schema-diagram',
+          name: serializedTab.name
+        } as SchemaDiagramTab
       } else {
         const lastSaved = serializedTab.lastSavedContent ?? ''
         const current = serializedTab.editorContent ?? ''
@@ -304,6 +386,19 @@ export const useTabStore = create<TabStore>((set, get) => ({
           filters: tab.filters,
           sortRules: tab.sortRules
         } as SerializedTableTab
+      } else if (tab.kind === 'dashboard') {
+        return {
+          kind: 'dashboard',
+          id: tab.id,
+          dashboardId: tab.dashboardId,
+          name: tab.name
+        } as SerializedDashboardTab
+      } else if (tab.kind === 'schema-diagram') {
+        return {
+          kind: 'schema-diagram',
+          id: tab.id,
+          name: tab.name
+        } as SerializedSchemaDiagramTab
       } else {
         return {
           kind: 'query',

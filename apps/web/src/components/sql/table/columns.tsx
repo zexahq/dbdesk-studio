@@ -3,7 +3,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatCellValue, getCellVariant } from '@/lib/data-table'
 import { cn } from '@/lib/utils'
-import type { ColumnDef } from '@tanstack/react-table'
+import type { CellContext, ColumnDef, Table } from '@tanstack/react-table'
 import { ChevronDown, ChevronUp, Key, Link } from 'lucide-react'
 
 const DEFAULT_COLUMN_WIDTH = 240
@@ -59,7 +59,7 @@ export const getColumns = (
     ...columns.map((column) => ({
       id: column.name,
       accessorKey: column.name,
-      header: ({ table }) => {
+      header: ({ table }: { table: Table<QueryResultRow> }) => {
         const meta = table.options.meta as
           | {
               sortRules?: TableSortRule[]
@@ -153,7 +153,7 @@ export const getColumns = (
           </div>
         )
       },
-      cell: ({ getValue }) => {
+      cell: ({ getValue }: CellContext<QueryResultRow, unknown>) => {
         const value = getValue()
         const formattedValue = formatCellValue(value, column.dataType)
         const isNull = value === null

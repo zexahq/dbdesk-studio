@@ -13,9 +13,8 @@
 # For an integration that should omit both surfaces, use:
 #   excluded: [dashboard, schema-visualizer]
 features:
-  # Autobase exposes the schema diagram but keeps dashboard authoring hidden.
-  excluded:
-    - dashboard
+  # The Autobase console exposes both dbdesk workspace surfaces.
+  excluded: []
 
 embedding:
   # `auto` enables embedding only when Studio is inside an iframe. Use false

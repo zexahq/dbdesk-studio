@@ -13,7 +13,8 @@ export { toast }
 export type ToastType = 'success' | 'error' | 'warning' | 'info' | 'default'
 
 export const showToast = (type: ToastType, message: string, description?: string) => {
-  toast[type](message, {
+  const notify = type === 'default' ? toast : toast[type]
+  notify(message, {
     description
   })
 }

@@ -6,6 +6,12 @@ import { dirname, join } from 'node:path'
 
 const DASHBOARD_FILENAME = 'dashboards.json'
 const DEFAULT_STORAGE_DIR = join(homedir(), '.config', 'dbdesk-studio')
+const DEFAULT_DASHBOARD_LAYOUT = {
+  columns: 12,
+  rowHeight: 80,
+  margin: [16, 16] as [number, number],
+  containerPadding: [0, 0] as [number, number]
+}
 
 // Dashboard persistence is connection-scoped and host-neutral. Third-party
 // integrations control visibility through the active runtime registry; they do not need a
@@ -28,6 +34,9 @@ const serialize = (dashboard: DashboardConfig): StoredDashboard => ({
 
 const deserialize = (dashboard: StoredDashboard): DashboardConfig => ({
   ...dashboard,
+  // Dashboards saved by the initial Studio implementation did not persist a
+  // grid layout. Supplying the dbdesk default keeps those records usable.
+  layout: dashboard.layout ?? DEFAULT_DASHBOARD_LAYOUT,
   createdAt: new Date(dashboard.createdAt),
   updatedAt: new Date(dashboard.updatedAt)
 })

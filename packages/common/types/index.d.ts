@@ -8,5 +8,5 @@ export type { ColumnInfo, ColumnDefinition, CreateTableOptions, CreateTableResul
 export type { CollectionInfo, MongoDBAdapter, MongoDBConnectionOptions, MongoDBIndexInfo } from './mongodb';
 export type { KeyInfo, RedisAdapter, RedisConnectionOptions, RedisKeyType } from './redis';
 export type { ConnectionProfile, DBConnectionOptions, DatabaseType, MongoDBConnectionProfile, RedisConnectionProfile, SQLConnectionProfile, SQLDatabaseType } from './connection';
-export type { ConnectionWorkspace, SavedQueriesStorage, SavedQuery, SerializedQueryTab, SerializedTab, SerializedTableTab, WorkspaceStorage } from './workspace';
-export type { DashboardConfig, DashboardExport, Widget, WidgetPosition, WidgetType } from './dashboard';
+export type { ConnectionWorkspace, SavedQueriesStorage, SavedQuery, SerializedDashboardTab, SerializedQueryTab, SerializedSchemaDiagramTab, SerializedTab, SerializedTableTab, WorkspaceStorage } from './workspace';
+export type { ChartWidgetSettings, DashboardConfig, DashboardExport, DashboardLayout, KPIWidgetSettings, NotesWidgetSettings, PieChartWidgetSettings, SavedQueriesWidgetSettings, ScatterWidgetSettings, TableWidgetSettings, Widget, WidgetPosition, WidgetSettings, WidgetType } from './dashboard';
