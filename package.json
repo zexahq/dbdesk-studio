@@ -41,7 +41,7 @@
   "devDependencies": {
     "@dbdesk-studio/config": "workspace:*",
     "@types/node": "catalog:",
-    "turbo": "^2.6.3",
+    "turbo": "^2.10.13",
     "typescript": "catalog:"
   },
   "packageManager": "pnpm@10.13.1"
