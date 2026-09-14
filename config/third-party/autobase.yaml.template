@@ -25,6 +25,7 @@ embedding:
   ui:
     hideThemeControls: true
     hideDisconnect: false
+    hideSidebar: false
   theme:
     syncFromParent: true
   connection:
@@ -35,6 +36,11 @@ embedding:
     reuseExistingProfile: true
     restoreLastConnection: true
     clearRememberedOnDisconnect: true
+  projects:
+    # Enable to isolate saved connections by project.
+    enabled: false
+    # A host may set window.__DBDESK_PROJECT_ID__ dynamically instead.
+    id: ""
 
 routing:
   # Override with __DBDESK_BASE_PATH__ when mounted below a URL prefix.

@@ -13,7 +13,9 @@
 # For an integration that should omit both surfaces, use:
 #   excluded: [dashboard, schema-visualizer]
 features:
-  excluded: []
+  # Autobase exposes the schema diagram but keeps dashboard authoring hidden.
+  excluded:
+    - dashboard
 
 embedding:
   # `auto` enables embedding only when Studio is inside an iframe. Use false
@@ -38,6 +40,8 @@ embedding:
     # Parent-controlled UI affordances. These do not change database behavior.
     hideThemeControls: true
     hideDisconnect: false
+    # Hide the global navigation rail and the workspace schema/query sidebar.
+    hideSidebar: false
   theme:
     # Accept theme changes from the parent through the configured setTheme event.
     syncFromParent: true
@@ -54,6 +58,11 @@ embedding:
     restoreLastConnection: true
     # Controls cleanup after an explicit disconnect/delete action.
     clearRememberedOnDisconnect: true
+  projects:
+    # Set true when the host embeds one Studio instance per project.
+    enabled: false
+    # Prefer the runtime global __DBDESK_PROJECT_ID__ for dynamic projects.
+    id: ""
 
 routing:
   # The host can override this at runtime with __DBDESK_BASE_PATH__. This is

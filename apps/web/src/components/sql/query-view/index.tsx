@@ -11,7 +11,7 @@ import { useSavedQueriesStore } from '@/store/saved-queries-store'
 import { useSqlWorkspaceStore } from '@/store/sql-workspace-store'
 import { type QueryTab, useTabStore } from '@/store/tab-store'
 import { toast } from '@/lib/toast'
-import { getQueryAtLine, hasDangerousSqlKeywords } from '@/lib/sql-parser'
+import { getQueryAtLine, hasDangerousSqlKeywords, normalizeQuery } from '@/lib/sql-parser'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { DangerousQueryDialog } from '../dialogs/dangerous-query-dialog'
 import { QueryBottombar } from './query-bottombar'
@@ -111,6 +111,34 @@ export function QueryView({ profile, activeTab }: QueryViewProps) {
     await executeQueryWithPagination(limit, 0, queries)
   }
 
+  const handleExplain = async () => {
+    const selected = getQueryAtLine(activeTab.editorContent)
+    if (selected.length !== 1) {
+      toast.error('Explain requires exactly one SQL statement')
+      return
+    }
+    const query = normalizeQuery(selected[0])
+    if (!query) {
+      toast.error('Query cannot be empty')
+      return
+    }
+    try {
+      const result = await runQueryMutation({
+        query: `EXPLAIN (FORMAT JSON) ${query}`,
+        options: { queryId: globalThis.crypto?.randomUUID?.() }
+      })
+      updateQueryTab(activeTab.id, {
+        queryResults: result,
+        batchResults: undefined,
+        activeResultIndex: 0,
+        totalRowCount: undefined,
+        lastExecutedQuery: `EXPLAIN (FORMAT JSON) ${query}`
+      })
+    } catch {
+      updateQueryTab(activeTab.id, { queryResults: undefined, batchResults: undefined })
+    }
+  }
+
   const handleUpdateQuery = async () => {
     if (activeTab.isLocked) return
     const savedQuery = queries.find((q) => q.id === activeTab.id)
@@ -160,6 +188,7 @@ export function QueryView({ profile, activeTab }: QueryViewProps) {
             isLoading={isExecuting || runManyMutation.isPending}
             error={executionError ?? runManyMutation.error}
             onRun={handleRunQuery}
+            onExplain={() => void handleExplain()}
             onCancel={() => {
               if (queryIdRef.current) void cancelMutation.mutateAsync(queryIdRef.current)
             }}

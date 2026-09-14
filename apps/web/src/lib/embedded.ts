@@ -130,6 +130,7 @@ export function setupEmbeddedThemeListener(
  *     type?: "postgres"              // defaults to "postgres"
  *     name?: string                  // display name, defaults to "database@host"
  *   }
+ *   projectId?: string                // isolates saved connections per project
  * }
  * ```
  *
@@ -156,6 +157,12 @@ export function setupEmbeddedConnectListener(): void {
     // the same capability.
     const conn = event.data.connection
     if (!conn || typeof conn !== 'object') return
+
+    // A host may select the project dynamically. The API client then attaches
+    // this scope to the profile and every subsequent request.
+    if (typeof event.data.projectId === 'string' && event.data.projectId.trim()) {
+      ;(window as Window & { __DBDESK_PROJECT_ID__?: string }).__DBDESK_PROJECT_ID__ = event.data.projectId.trim()
+    }
 
     const {
       host,

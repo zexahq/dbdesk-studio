@@ -17,6 +17,11 @@ the registry and API requests resolve from that prefix.
 
 - optional surface exclusions under `features.excluded` (for example
   `dashboard` or `schema-visualizer`);
+- UI policy such as `embedding.ui.hideSidebar` when the host supplies its own
+  navigation;
+- project-scoped profile isolation through `embedding.projects`; hosts can set
+  `window.__DBDESK_PROJECT_ID__` before boot or send `projectId` with
+  `dbdesk-connect`;
 - iframe/embedded-mode policy;
 - parent-origin allowlists and `postMessage` target origin;
 - names of the ready, connect, connected, error, and theme events;
@@ -46,6 +51,7 @@ the configured `messages.connect` event. The connection payload currently has:
   password?: string
   type?: string
   name?: string
+  projectId?: string
 }
 ```
 

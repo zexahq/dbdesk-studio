@@ -1,5 +1,5 @@
 import type { SQLConnectionProfile } from '@common/types'
-import { isFeatureEnabled } from '@common/config'
+import { getRuntimeConfig, isFeatureEnabled } from '@common/config'
 import { dbdeskClient } from '@/api/client'
 import { useSchemasWithTables } from '@/api/queries/schema'
 import { UnsavedChangesDialog } from '@/components/sql/dialogs/unsaved-changes-dialog'
@@ -34,7 +34,7 @@ export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
     return tabs.find((t) => t.id === activeTabId)
   })
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => !getRuntimeConfig().embedding.ui.hideSidebar)
   const [activeSurface, setActiveSurface] = useState<'dashboard' | 'schema-visualizer' | null>(null)
   const { requestCloseTab, dialogProps } = useTabCloseHandler(profile)
   const lastInitializedConnectionId = useRef<string | null>(null)
@@ -123,7 +123,7 @@ export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
             defaultSize={16}
             minSize={12}
             maxSize={32}
-            className={cn(!isSidebarOpen && 'hidden')}
+            className={cn((!isSidebarOpen || getRuntimeConfig().embedding.ui.hideSidebar) && 'hidden')}
           >
             <WorkspaceSidebar
               profile={profile}
@@ -133,7 +133,7 @@ export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
               onOpenSchemaVisualizer={() => setActiveSurface('schema-visualizer')}
             />
           </ResizablePanel>
-          <ResizableHandle withHandle className={cn(!isSidebarOpen && 'hidden')} />
+          <ResizableHandle withHandle className={cn((!isSidebarOpen || getRuntimeConfig().embedding.ui.hideSidebar) && 'hidden')} />
           <ResizablePanel>
             <SidebarInset className="flex h-full flex-col overflow-hidden">
               <WorkspaceTopbar

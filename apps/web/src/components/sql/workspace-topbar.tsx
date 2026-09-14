@@ -103,7 +103,7 @@ export function WorkspaceTopbar({
         onAddQueryTab={handleNewQuery}
       />
       <div className="border-b h-10 bg-muted/20 flex items-center">
-        {!getRuntimeConfig().embedding.ui.hideDisconnect && <Button
+        {!getRuntimeConfig().embedding.ui.hideSidebar && <Button
           variant="ghost"
           size="icon"
           className="h-full w-10 rounded-none border-r border-border/50 shrink-0"
@@ -148,7 +148,7 @@ export function WorkspaceTopbar({
           </DndContext>
         </div>
 
-        <Button
+        {!getRuntimeConfig().embedding.ui.hideDisconnect && <Button
           variant="ghost"
           size="icon"
           className="h-full w-10 cursor-pointer rounded-none border-l border-border/50 shrink-0 hover:bg-destructive/10 hover:text-destructive"
@@ -157,7 +157,7 @@ export function WorkspaceTopbar({
         >
           <Unplug className="size-4" />
           <span className="sr-only">Disconnect</span>
-        </Button>
+        </Button>}
       </div>
     </>
   )

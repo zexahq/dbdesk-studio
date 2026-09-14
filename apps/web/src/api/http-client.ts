@@ -40,9 +40,16 @@ import type {
   
   async function request<T>(path: string, options: RequestInit = {}) {
     const url = `${getBaseUrl()}${path}`
+    const headers = new Headers(options.headers)
+    headers.set('Content-Type', 'application/json')
+    const config = getRuntimeConfig()
+    const projectId = config.embedding.projects.enabled
+      ? (globalThis.window as (Window & { __DBDESK_PROJECT_ID__?: string }) | undefined)?.__DBDESK_PROJECT_ID__ || config.embedding.projects.id
+      : ''
+    if (projectId) headers.set('X-DBDESK-Project-ID', projectId)
     const res = await fetch(url, {
       credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       ...options
     })
     if (!res.ok) {

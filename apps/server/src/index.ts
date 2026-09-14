@@ -26,6 +26,8 @@ import {
 } from './dashboard-storage'
 import { deleteQuery, loadQueries, saveQuery, updateQuery } from './saved-queries-storage'
 import { deleteProfile, getProfile, loadProfiles, saveProfile } from './storage'
+import { getProjectId } from './project-scope'
+import { translatePsqlMetaCommand } from './lib/psql-meta'
 import { ValidationError } from './utils/errors'
 import { getRouteParam, validateConnectionUri } from './utils/validation'
 import { deleteWorkspace, loadWorkspace, saveWorkspace } from './workspace-storage'
@@ -87,13 +89,36 @@ app.get('/api/adapters', (_req: Request, res: Response) => {
 // Connections API
 // ============================================================================
 
-app.get('/api/connections', async (_req: Request, res: Response) => {
-  const profiles = await loadProfiles()
+// Enforce the same project boundary for every connection-scoped endpoint,
+// including queries and schema operations. Listing alone is not sufficient:
+// a host must not be able to reuse an id belonging to another project.
+app.use('/api/connections/:connectionId', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    // `/from-uri` is a sibling collection route, not a connection id.
+    if (req.path === '/from-uri') {
+      next()
+      return
+    }
+    const projectId = getProjectId(req)
+    const profile = await getProfile(String(req.params.connectionId), projectId)
+    if (!profile) {
+      res.status(404).json({ error: 'Connection not found' })
+      return
+    }
+    next()
+  } catch (error) {
+    next(error)
+  }
+})
+
+app.get('/api/connections', async (req: Request, res: Response) => {
+  const profiles = await loadProfiles(getProjectId(req))
   res.json(profiles)
 })
 
 app.post('/api/connections', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const projectId = getProjectId(req)
     const { name, type, options } = req.body as {
       name: string
       type: DatabaseType
@@ -117,10 +142,11 @@ app.post('/api/connections', async (req: Request, res: Response, next: NextFunct
       type,
       options,
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
+      projectId
     } as ConnectionProfile
 
-    await saveProfile(profile)
+    await saveProfile(profile, projectId)
     res.status(201).json(profile)
   } catch (err) {
     next(err)
@@ -130,6 +156,7 @@ app.post('/api/connections', async (req: Request, res: Response, next: NextFunct
 // Create connection from URI (connection string)
 app.post('/api/connections/from-uri', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const projectId = getProjectId(req)
     const { uri } = req.body as { uri: string }
 
     // Validate and parse the connection URI
@@ -142,7 +169,7 @@ app.post('/api/connections/from-uri', async (req: Request, res: Response, next: 
     }
 
     // Check for an existing profile with matching connection details
-    const existingProfiles = await loadProfiles()
+    const existingProfiles = await loadProfiles(projectId)
     const existingProfile = existingProfiles.find((p) => {
       if (p.type !== type) return false
       const opts = p.options as typeof options
@@ -160,7 +187,7 @@ app.post('/api/connections/from-uri', async (req: Request, res: Response, next: 
       if (existingOpts.password !== options.password) {
         existingOpts.password = options.password
         existingProfile.updatedAt = new Date()
-        await saveProfile(existingProfile)
+        await saveProfile(existingProfile, projectId)
       }
 
       // Re-establish the connection
@@ -182,11 +209,12 @@ app.post('/api/connections/from-uri', async (req: Request, res: Response, next: 
       type,
       options,
       createdAt: now,
-      updatedAt: now
+      updatedAt: now,
+      projectId
     } as ConnectionProfile
 
     // Save the profile
-    await saveProfile(profile)
+    await saveProfile(profile, projectId)
 
     // Immediately establish the connection
     const manager = ConnectionManager.getInstance()
@@ -194,7 +222,7 @@ app.post('/api/connections/from-uri', async (req: Request, res: Response, next: 
       await manager.createConnection(profile.id, type, options)
     } catch (connectionError) {
       // Roll back the saved profile if connection creation fails
-      await deleteProfile(profile.id)
+      await deleteProfile(profile.id, projectId)
       throw connectionError
     }
 
@@ -209,7 +237,7 @@ app.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const connectionId = getRouteParam(req.params, 'connectionId')
-      const profile = await getProfile(connectionId)
+      const profile = await getProfile(connectionId, getProjectId(req))
 
       if (!profile) {
         res.status(404).json({ error: 'Connection not found' })
@@ -234,6 +262,7 @@ app.put(
       }
 
       const connectionId = getRouteParam(req.params, 'connectionId')
+      const projectId = getProjectId(req)
       if (!name || typeof name !== 'string' || name.trim() === '') {
         res.status(400).json({ error: 'Missing required fields: name' })
         return
@@ -247,7 +276,7 @@ app.put(
         return
       }
 
-      const profiles = await loadProfiles()
+      const profiles = await loadProfiles(projectId)
       const existingProfile = profiles.find((item) => item.id === connectionId)
 
       if (!existingProfile) {
@@ -276,7 +305,7 @@ app.put(
         updatedAt: new Date()
       } as ConnectionProfile
 
-      await saveProfile(profile)
+      await saveProfile(profile, projectId)
       res.json(profile)
     } catch (err) {
       next(err)
@@ -284,10 +313,10 @@ app.put(
   }
 )
 
-app.delete('/api/connections/:connectionId', (req: Request, res: Response, next: NextFunction) => {
+app.delete('/api/connections/:connectionId', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const connectionId = getRouteParam(req.params, 'connectionId')
-    deleteProfile(connectionId)
+    await deleteProfile(connectionId, getProjectId(req))
     res.json({ success: true })
   } catch (err) {
     next(err)
@@ -300,7 +329,7 @@ app.post(
     try {
       const connectionId = getRouteParam(req.params, 'connectionId')
       const manager = ConnectionManager.getInstance()
-      const profile = await getProfile(connectionId)
+      const profile = await getProfile(connectionId, getProjectId(req))
 
       if (!profile) {
         res.status(404).json({ error: 'Connection not found' })
@@ -353,7 +382,7 @@ app.post(
         return
       }
 
-      const result = await adapter.runQuery(query, options)
+      const result = await adapter.runQuery(translatePsqlMetaCommand(query), options)
       res.json(result)
     } catch (err) {
       next(err)
@@ -378,7 +407,7 @@ app.post(
         return
       }
 
-      res.json(await adapter.runManyQueries(queries, options))
+      res.json(await adapter.runManyQueries(queries.map(translatePsqlMetaCommand), options))
     } catch (err) {
       next(err)
     }

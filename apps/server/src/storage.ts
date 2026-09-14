@@ -57,13 +57,15 @@ const writeProfilesToDisk = async (profiles: StoredConnectionProfile[]): Promise
   await fs.writeFile(filePath, JSON.stringify(profiles, null, 2), 'utf8')
 }
 
-export const loadProfiles = async (): Promise<ConnectionProfile[]> => {
+export const loadProfiles = async (projectId?: string): Promise<ConnectionProfile[]> => {
   const storedProfiles = await readProfilesFromDisk()
-  return storedProfiles.map(deserializeProfile)
+  return storedProfiles
+    .map(deserializeProfile)
+    .filter((profile) => !projectId || profile.projectId === projectId)
 }
 
-export const getProfile = async (profileId: string): Promise<ConnectionProfile | undefined> => {
-  const profiles = await loadProfiles()
+export const getProfile = async (profileId: string, projectId?: string): Promise<ConnectionProfile | undefined> => {
+  const profiles = await loadProfiles(projectId)
   const profile = profiles.find((profile) => profile.id === profileId)
 
   if (!profile) {
@@ -72,11 +74,12 @@ export const getProfile = async (profileId: string): Promise<ConnectionProfile |
   return profile
 }
 
-export const saveProfile = async (profile: ConnectionProfile): Promise<void> => {
+export const saveProfile = async (profile: ConnectionProfile, projectId?: string): Promise<void> => {
   const storedProfiles = await readProfilesFromDisk()
-  const index = storedProfiles.findIndex((item) => item.id === profile.id)
+  const scopedProfile = projectId ? { ...profile, projectId } : profile
+  const index = storedProfiles.findIndex((item) => item.id === scopedProfile.id && (!projectId || item.projectId === projectId))
 
-  const serializedProfile = serializeProfile(profile)
+  const serializedProfile = serializeProfile(scopedProfile)
 
   if (index >= 0) {
     storedProfiles[index] = serializedProfile
@@ -87,9 +90,11 @@ export const saveProfile = async (profile: ConnectionProfile): Promise<void> => 
   await writeProfilesToDisk(storedProfiles)
 }
 
-export const deleteProfile = async (profileId: string): Promise<void> => {
+export const deleteProfile = async (profileId: string, projectId?: string): Promise<void> => {
   const storedProfiles = await readProfilesFromDisk()
-  const filteredProfiles = storedProfiles.filter((profile) => profile.id !== profileId)
+  const filteredProfiles = storedProfiles.filter((profile) =>
+    profile.id !== profileId || (projectId !== undefined && profile.projectId !== projectId)
+  )
 
   await writeProfilesToDisk(filteredProfiles)
 }

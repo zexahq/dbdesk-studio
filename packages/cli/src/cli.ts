@@ -84,8 +84,11 @@ function printHelp() {
 function getServerPath(): string {
   // Try to find the server in different possible locations
   const possiblePaths = [
+    path.join(__dirname, '../../..', 'apps/server/dist/index.mjs'),
     path.join(__dirname, '../../..', 'apps/server/dist/index.js'),
+    path.join(__dirname, '../../../apps/server/dist/index.mjs'),
     path.join(__dirname, '../../../apps/server/dist/index.js'),
+    path.join(__dirname, '../../server/dist/index.mjs'),
     path.join(__dirname, '../../server/dist/index.js'),
   ]
 
@@ -158,13 +161,39 @@ function startFrontend(config: Config): Promise<void> {
     // Create a simple HTTP server to serve static files
     const serverScript = `
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const { URL } = require('url');
 
 const distPath = '${webDistPath}';
 const port = ${config.frontendPort};
+const backendUrl = ${JSON.stringify(config.backendUrl)};
+
+function proxyApiRequest(req, res) {
+  const target = new URL(req.url || '/', backendUrl);
+  const transport = target.protocol === 'https:' ? https : http;
+  const proxy = transport.request(target, {
+    method: req.method,
+    headers: { ...req.headers, host: target.host }
+  }, (backendResponse) => {
+    res.writeHead(backendResponse.statusCode || 502, backendResponse.headers);
+    backendResponse.pipe(res);
+  });
+
+  proxy.on('error', (error) => {
+    res.writeHead(502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Backend unavailable', detail: error.message }));
+  });
+  req.pipe(proxy);
+}
 
 const server = http.createServer((req, res) => {
+  if (req.url === '/api' || req.url.startsWith('/api/')) {
+    proxyApiRequest(req, res);
+    return;
+  }
+
   let filePath = path.join(distPath, req.url === '/' ? 'index.html' : req.url);
   const extname = path.extname(filePath);
   
@@ -215,7 +244,15 @@ server.listen(port, () => {});
 }
 
 async function main() {
-  const config = parseArgs()
+  const parsedConfig = parseArgs()
+  const config = {
+    ...parsedConfig,
+    // Keep the default frontend proxy aligned with --backend-port.
+    backendUrl:
+      parsedConfig.backendUrl === DEFAULT_CONFIG.backendUrl
+        ? `http://localhost:${parsedConfig.backendPort}`
+        : parsedConfig.backendUrl
+  }
 
   try {
     // Start both services
@@ -232,7 +269,7 @@ async function main() {
       console.log('Creating connection from URI...')
       
       try {
-        const connectionId = await createConnectionFromUri(config.uri, config.backendPort)
+        const connectionId = await createConnectionFromUri(config.uri, config.backendUrl)
         const appUrl = `${baseUrl}/connections/${connectionId}`
         console.log(`Connection created! Opening ${baseUrl}/connections/<id>`)
         openBrowser(appUrl)
@@ -250,8 +287,8 @@ async function main() {
   }
 }
 
-async function createConnectionFromUri(uri: string, backendPort: number): Promise<string> {
-  const response = await fetch(`http://localhost:${backendPort}/api/connections/from-uri`, {
+async function createConnectionFromUri(uri: string, backendUrl: string): Promise<string> {
+  const response = await fetch(`${backendUrl.replace(/\/$/, '')}/api/connections/from-uri`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'

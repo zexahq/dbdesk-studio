@@ -7,6 +7,7 @@ import { getRuntimeConfig } from '@common/config'
 import { clearLastConnectionId } from '@/lib/last-connection'
 
 export function MainSidebar() {
+  if (getRuntimeConfig().embedding.ui.hideSidebar) return null
   // Deliberately leaving a workspace for the connections list: forget the
   // remembered connection so a later reload keeps the user on the list
   // instead of auto-restoring the editor.

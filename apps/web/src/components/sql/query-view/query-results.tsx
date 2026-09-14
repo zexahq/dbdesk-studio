@@ -1,7 +1,7 @@
 import type { QueryBatchResult, QueryResult } from '@common/types'
 import { Button } from '@/components/ui/button'
 import { cleanErrorMessage } from '@/lib/utils'
-import { LoaderCircle, Play, Square } from 'lucide-react'
+import { ListTree, LoaderCircle, Play, Square } from 'lucide-react'
 import { SimpleTable } from './simple-table'
 
 interface QueryResultsProps {
@@ -11,6 +11,7 @@ interface QueryResultsProps {
   isLoading?: boolean
   error?: Error | null
   onRun: () => void
+  onExplain?: () => void
   onCancel?: () => void
   onResultSelect?: (index: number) => void
 }
@@ -22,6 +23,7 @@ export function QueryResults({
   isLoading,
   error,
   onRun,
+  onExplain,
   onCancel,
   onResultSelect
 }: QueryResultsProps) {
@@ -37,10 +39,18 @@ export function QueryResults({
             CANCEL
           </Button>
         ) : (
-          <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={onRun}>
-            <Play className="size-4" />
-            RUN
-          </Button>
+          <div className="flex items-center gap-2">
+            {onExplain && (
+              <Button size="sm" variant="outline" className="h-8 text-xs cursor-pointer" onClick={onExplain}>
+                <ListTree className="size-4" />
+                EXPLAIN
+              </Button>
+            )}
+            <Button size="sm" className="h-8 text-xs cursor-pointer" onClick={onRun}>
+              <Play className="size-4" />
+              RUN
+            </Button>
+          </div>
         )}
       </div>
       <div className="flex flex-1 flex-col overflow-hidden">
@@ -74,7 +84,7 @@ export function QueryResults({
           </div>
           ) : displayedResult ? (
           <div className="w-full h-full">
-            {displayedResult.totalRowCount !== undefined ? (
+            {displayedResult.totalRowCount !== undefined || displayedResult.columns.length > 0 ? (
               <SimpleTable columns={displayedResult.columns} data={displayedResult.rows} />
             ) : (
               <div className="flex p-2 w-full items-center text-center text-muted-foreground">

@@ -6,6 +6,7 @@ import path from "node:path";
 import { defineConfig, type Plugin } from "vite";
 
 const runtimeRegistryPath = path.resolve(__dirname, "../../config/third-party/autobase.yaml");
+const devApiProxyTarget = process.env.VITE_DEV_API_PROXY_TARGET || "http://localhost:6789";
 
 function runtimeRegistryPlugin(): Plugin {
   return {
@@ -36,5 +37,13 @@ export default defineConfig({
   },
   server: {
     port: process.env.FRONTEND_PORT ? parseInt(process.env.FRONTEND_PORT) : 3001,
+    // Keep `/api` same-origin in the browser while forwarding it to Express.
+    // Without this, Vite's SPA fallback returns index.html for API requests.
+    proxy: {
+      "/api": {
+        target: devApiProxyTarget,
+        changeOrigin: true,
+      },
+    },
   },
 });

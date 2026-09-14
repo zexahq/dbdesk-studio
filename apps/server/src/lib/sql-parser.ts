@@ -1,173 +1,82 @@
-/**
- * SQL parsing utilities for query detection and pagination
- */
+/** SQL classification utilities used by the adapter pagination path. */
+
+export function stripSqlComments(sql: string): string {
+  let out = ''; let quote: "'" | '"' | null = null; let lineComment = false; let block = 0; let dollar: string | null = null
+  for (let i = 0; i < sql.length; i += 1) {
+    const c = sql[i]; const n = sql[i + 1]
+    if (lineComment) { if (c === '\n') { lineComment = false; out += '\n' } else out += ' '; continue }
+    if (block) { if (c === '/' && n === '*') { block += 1; out += '  '; i += 1 } else if (c === '*' && n === '/') { block -= 1; out += '  '; i += 1 } else out += c === '\n' ? '\n' : ' '; continue }
+    if (dollar) { if (sql.startsWith(dollar, i)) { out += dollar; i += dollar.length - 1; dollar = null } else out += c; continue }
+    if (quote) { out += c; if (c === quote) { if (n === quote) { out += n; i += 1 } else quote = null } continue }
+    if (c === '-' && n === '-') { lineComment = true; out += '  '; i += 1; continue }
+    if (c === '/' && n === '*') { block = 1; out += '  '; i += 1; continue }
+    if (c === "'" || c === '"') { quote = c; out += c; continue }
+    if (c === '$') { const match = sql.slice(i).match(/^\$[A-Za-z_][A-Za-z0-9_]*\$|^\$\$/); if (match) { dollar = match[0]; out += dollar; i += dollar.length - 1; continue } }
+    out += c
+  }
+  return out
+}
 
 export const normalizeQuery = (query: string): string => {
-  return query.replace(/;+\s*$/, '')
+  const commentFree = stripSqlComments(query).trimEnd()
+  if (commentFree.endsWith(';')) {
+    const semicolonIndex = commentFree.lastIndexOf(';')
+    return query.slice(0, semicolonIndex).trim()
+  }
+  return query.trim()
 }
 
-export const skipQuotedString = (text: string, start: number, quoteChar: string): number => {
-  let index = start
-  if (text[index] !== quoteChar) return start
-
-  index++ // skip opening quote
-  while (index < text.length) {
-    if (text[index] === quoteChar) {
-      index++
-      if (index >= text.length || text[index] !== quoteChar) {
-        break // End of string/identifier
-      }
-      // Escaped quote, skip both
-      index++
-    } else {
-      index++
-    }
-  }
-  return index
-}
-
-export const skipParenthesizedSection = (text: string, start: number): number => {
-  let index = start
-  if (text[index] !== '(') return start
-
-  let depth = 1
-  index++ // skip opening paren
-
-  while (index < text.length && depth > 0) {
-    const char = text[index]
-    if (char === "'") {
-      index = skipQuotedString(text, index, "'")
-    } else if (char === '"') {
-      index = skipQuotedString(text, index, '"')
-    } else if (char === '(') {
-      depth++
-      index++
-    } else if (char === ')') {
-      depth--
-      index++
-    } else {
-      index++
-    }
-  }
-  return index
+function skipQuoted(text: string, start: number, quote: string): number {
+  let i = start + 1
+  while (i < text.length) { if (text[i] === quote) { i += 1; if (text[i] !== quote) break } i += 1 }
+  return i
 }
 
 export const hasAdditionalStatements = (query: string): boolean => {
-  let index = 0
-  const length = query.length
-
-  while (index < length) {
-    const char = query[index]
-
-    if (char === "'") {
-      index = skipQuotedString(query, index, "'")
-    } else if (char === '"') {
-      index = skipQuotedString(query, index, '"')
-    } else if (char === '(') {
-      index = skipParenthesizedSection(query, index)
-    } else if (char === ';') {
-      // Found a semicolon, check if there's anything after it
-      const afterSemicolon = query.substring(index + 1).trim()
-      return afterSemicolon.length > 0
-    } else {
-      index++
-    }
+  const clean = stripSqlComments(query)
+  for (let i = 0; i < clean.length; i += 1) {
+    if (clean[i] === "'" || clean[i] === '"') i = skipQuoted(clean, i, clean[i]) - 1
+    else if (clean[i] === ';' && clean.slice(i + 1).trim()) return true
   }
-
   return false
 }
 
+function skipParenthesized(text: string, start: number): number {
+  if (text[start] !== '(') return start
+  let index = start + 1
+  let depth = 1
+  while (index < text.length && depth > 0) {
+    if (text[index] === "'" || text[index] === '"') index = skipQuoted(text, index, text[index])
+    else if (text[index] === '(') { depth += 1; index += 1 }
+    else if (text[index] === ')') { depth -= 1; index += 1 }
+    else index += 1
+  }
+  return index
+}
+
 export const getInitialStatementKeyword = (query: string): string | null => {
-  let index = 0
-  const length = query.length
-
-  const skipWhitespace = () => {
-    while (index < length && /\s/.test(query[index])) {
-      index++
-    }
-  }
-
-  const readWord = (): string => {
-    skipWhitespace()
-    let word = ''
-    while (index < length && /[a-zA-Z_]/.test(query[index])) {
-      word += query[index]
-      index++
-    }
-    return word
-  }
-
-  // Handle WITH clauses (CTEs)
-  skipWhitespace()
-  const firstWord = readWord().toLowerCase()
-  if (firstWord !== 'with') {
-    return firstWord || null
-  }
-
-  // Skip the CTE definitions
-  while (index < length) {
-    skipWhitespace()
-    if (index >= length) break
-
-    // Read the CTE name
-    const cteName = readWord()
-    if (!cteName) break
-
-    skipWhitespace()
-    if (index >= length || query[index] !== '(') {
-      return null
-    }
-
-    index = skipParenthesizedSection(query, index)
-    skipWhitespace()
-
-    // Check for AS keyword
-    const asWord = readWord().toLowerCase()
-    if (asWord !== 'as') {
-      return asWord || null
-    }
-
-    skipWhitespace()
-    if (index >= length || query[index] !== '(') {
-      return null
-    }
-
-    index = skipParenthesizedSection(query, index)
-    skipWhitespace()
-
-    if (index < length && query[index] === ',') {
-      index += 1
-      skipWhitespace()
-      continue
-    }
-
+  const clean = stripSqlComments(normalizeQuery(query)).trim()
+  const first = clean.match(/^([A-Za-z_][A-Za-z0-9_]*)/)?.[1]?.toLowerCase()
+  if (!first || first !== 'with') return first ?? null
+  let index = first.length
+  while (index < clean.length) {
+    const name = clean.slice(index).match(/^\s*(?:[A-Za-z_][A-Za-z0-9_]*|"(?:""|[^"])+")\s*/)
+    if (!name) return null
+    index += name[0].length
+    if (clean[index] === '(') index = skipParenthesized(clean, index)
+    const as = clean.slice(index).match(/^\s+AS\s*/i)
+    if (!as) return clean.slice(index).match(/^\s*([A-Za-z_][A-Za-z0-9_]*)/)?.[1]?.toLowerCase() ?? null
+    index += as[0].length
+    if (clean[index] !== '(') return null
+    index = skipParenthesized(clean, index)
+    if (clean[index] === ',') { index += 1; continue }
     break
   }
-
-  skipWhitespace()
-  const mainKeyword = readWord().toLowerCase()
-  return mainKeyword || null
+  return clean.slice(index).match(/^\s*([A-Za-z_][A-Za-z0-9_]*)/)?.[1]?.toLowerCase() ?? null
 }
 
 export const isSelectableQuery = (query: string): boolean => {
-  const trimmed = query.trim()
-  if (trimmed === '') {
-    return false
-  }
-
-  const normalized = normalizeQuery(trimmed)
-  if (normalized === '') {
-    return false
-  }
-
-  if (hasAdditionalStatements(normalized)) {
-    return false
-  }
-
-  const keyword = getInitialStatementKeyword(normalized)
-  if (!keyword) {
-    return false
-  }
-
-  return keyword === 'select'
+  const normalized = normalizeQuery(query)
+  return normalized.length > 0 && !hasAdditionalStatements(normalized) &&
+    ['select', 'with', 'values', 'show'].includes(getInitialStatementKeyword(normalized) ?? '')
 }

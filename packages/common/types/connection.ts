@@ -31,6 +31,8 @@ export interface SQLConnectionProfile {
   createdAt: Date
   updatedAt: Date
   lastConnectedAt?: Date
+  /** Optional host project scope used by embedded deployments. */
+  projectId?: string
 }
 
 /**
@@ -44,6 +46,7 @@ export interface MongoDBConnectionProfile {
   createdAt: Date
   updatedAt: Date
   lastConnectedAt?: Date
+  projectId?: string
 }
 
 /**
@@ -57,6 +60,7 @@ export interface RedisConnectionProfile {
   createdAt: Date
   updatedAt: Date
   lastConnectedAt?: Date
+  projectId?: string
 }
 
 /**

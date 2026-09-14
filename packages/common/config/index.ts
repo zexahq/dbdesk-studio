@@ -35,6 +35,13 @@ export interface RuntimeConfig {
     ui: {
       hideThemeControls: boolean
       hideDisconnect: boolean
+      /** Hide both the global navigation rail and workspace sidebar. */
+      hideSidebar: boolean
+    }
+    projects: {
+      /** When enabled, profiles are isolated by the configured project id. */
+      enabled: boolean
+      id: string
     }
     theme: {
       syncFromParent: boolean
@@ -73,7 +80,12 @@ export const defaultRuntimeConfig: RuntimeConfig = {
     },
     ui: {
       hideThemeControls: true,
-      hideDisconnect: false
+      hideDisconnect: false,
+      hideSidebar: false
+    },
+    projects: {
+      enabled: false,
+      id: ''
     },
     theme: {
       syncFromParent: true
@@ -126,6 +138,7 @@ export function parseRuntimeConfig(text: string): RuntimeConfig {
   const ui = asRecord(embedding.ui)
   const theme = asRecord(embedding.theme)
   const connection = asRecord(embedding.connection)
+  const projects = asRecord(embedding.projects)
   const routing = asRecord(raw.routing)
   const enabled = embedding.enabled === true || embedding.enabled === false || embedding.enabled === 'auto'
     ? embedding.enabled
@@ -148,7 +161,12 @@ export function parseRuntimeConfig(text: string): RuntimeConfig {
       },
       ui: {
         hideThemeControls: asBoolean(ui.hideThemeControls, defaultRuntimeConfig.embedding.ui.hideThemeControls),
-        hideDisconnect: asBoolean(ui.hideDisconnect, defaultRuntimeConfig.embedding.ui.hideDisconnect)
+        hideDisconnect: asBoolean(ui.hideDisconnect, defaultRuntimeConfig.embedding.ui.hideDisconnect),
+        hideSidebar: asBoolean(ui.hideSidebar, defaultRuntimeConfig.embedding.ui.hideSidebar)
+      },
+      projects: {
+        enabled: asBoolean(projects.enabled, defaultRuntimeConfig.embedding.projects.enabled),
+        id: asString(projects.id, defaultRuntimeConfig.embedding.projects.id)
       },
       theme: {
         syncFromParent: asBoolean(theme.syncFromParent, defaultRuntimeConfig.embedding.theme.syncFromParent)
