@@ -35,7 +35,8 @@ export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
   })
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => !getRuntimeConfig().embedding.ui.hideSidebar)
-  const [activeSurface, setActiveSurface] = useState<'dashboard' | 'schema-visualizer' | null>(null)
+  const activeSurface = useSqlWorkspaceStore((s) => s.activeSurface)
+  const setActiveSurface = useSqlWorkspaceStore((s) => s.setActiveSurface)
   const { requestCloseTab, dialogProps } = useTabCloseHandler(profile)
   const lastInitializedConnectionId = useRef<string | null>(null)
 
@@ -127,10 +128,7 @@ export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
           >
             <WorkspaceSidebar
               profile={profile}
-              activeSurface={activeSurface}
               onCloseSurface={() => setActiveSurface(null)}
-              onOpenDashboard={() => setActiveSurface('dashboard')}
-              onOpenSchemaVisualizer={() => setActiveSurface('schema-visualizer')}
             />
           </ResizablePanel>
           <ResizableHandle withHandle className={cn((!isSidebarOpen || getRuntimeConfig().embedding.ui.hideSidebar) && 'hidden')} />
