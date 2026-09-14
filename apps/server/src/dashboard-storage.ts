@@ -8,7 +8,7 @@ const DASHBOARD_FILENAME = 'dashboards.json'
 const DEFAULT_STORAGE_DIR = join(homedir(), '.config', 'dbdesk-studio')
 
 // Dashboard persistence is connection-scoped and host-neutral. Third-party
-// integrations control visibility through autobase.yaml; they do not need a
+// integrations control visibility through the active runtime registry; they do not need a
 // separate storage implementation or provider-specific database schema.
 
 type StoredDashboard = Omit<DashboardConfig, 'createdAt' | 'updatedAt'> & {

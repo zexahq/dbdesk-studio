@@ -2,18 +2,18 @@
 
 ## Third-party embedding registry
 
-[`config/third-party/autobase.yaml`](./config/third-party/autobase.yaml) is the centralized runtime registry for embedding DBDesk Studio
-inside a third-party host. Autobase is the current consumer, but the contract
-must remain provider-neutral so another host can reuse it without changing
-feature code.
+[`config/runtime.yaml`](./config/runtime.yaml) is the neutral runtime registry
+used by `main`. Autobase-specific controls live in
+[`config/third-party/autobase.yaml`](./config/third-party/autobase.yaml) on the
+`autobase` branch only.
 
 The browser loads the registry before rendering. The Vite build also publishes
-it as `dist/autobase.yaml`, and the Docker image copies the source registry into
+it as `dist/runtime.yaml`, and the Docker image copies the source registry into
 the deployment image. If the host serves Studio below a path such as
 `/dbdesk/`, it must inject `window.__DBDESK_BASE_PATH__` in the bootstrap HTML so
 the registry and API requests resolve from that prefix.
 
-### What belongs in `config/third-party/autobase.yaml`
+### What belongs in the branch-specific runtime registry
 
 - optional surface exclusions under `features.excluded` (for example
   `dashboard` or `schema-visualizer`);
@@ -62,7 +62,8 @@ exact origin and set a matching `targetOrigin`.
 
 ### Change checklist for integration work
 
-1. Update `config/third-party/autobase.yaml` and its comments first.
+1. Update the active branch registry (`config/runtime.yaml` on `main`, or
+   `config/third-party/autobase.yaml` on `autobase`) and its comments first.
 2. Update the shared `RuntimeConfig` type/parser when adding a key.
 3. For optional surfaces, add a stable feature identifier and gate both the
    entry point and the rendered surface with `isFeatureEnabled`.
@@ -72,7 +73,8 @@ exact origin and set a matching `targetOrigin`.
 6. Preserve standalone behavior when the registry is missing; defaults must
    allow the application to boot.
 7. Document any new event or payload field for third-party collaborators.
-8. Verify that `pnpm --filter web build` emits `dist/autobase.yaml`.
+8. Verify that `pnpm --filter web build` emits the branch registry (`dist/runtime.yaml`
+   on `main`, or `dist/autobase.yaml` on `autobase`).
 
-Avoid putting secrets in `autobase.yaml`; credentials are supplied at runtime
-through the host message and should not be committed to the repository.
+Avoid putting secrets in either runtime registry; credentials are supplied at
+runtime through the host message and should not be committed to the repository.

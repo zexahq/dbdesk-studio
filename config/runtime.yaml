@@ -1,0 +1,41 @@
+# Standalone DBDesk Studio runtime registry.
+#
+# Autobase-specific controls live only in config/third-party/autobase.yaml on
+# the autobase branch. Keep this registry provider-neutral for main builds.
+
+features:
+  excluded: []
+
+embedding:
+  enabled: auto
+  allowedOrigins:
+    - "*"
+  targetOrigin: "*"
+  messages:
+    ready: dbdesk-ready
+    connect: dbdesk-connect
+    connected: dbdesk-connected
+    connectError: dbdesk-connect-error
+    setTheme: dbdesk-set-theme
+  ui:
+    hideThemeControls: true
+    hideDisconnect: false
+    hideSidebar: false
+  projects:
+    enabled: false
+    id: ""
+  theme:
+    syncFromParent: true
+  connection:
+    defaultType: postgres
+    defaultPort: 5432
+    defaultDatabase: postgres
+    defaultUser: postgres
+    reuseExistingProfile: true
+    restoreLastConnection: true
+    clearRememberedOnDisconnect: true
+
+routing:
+  basePath: /
+  apiBasePath: ""
+  postConnectPath: /connections/{connectionId}

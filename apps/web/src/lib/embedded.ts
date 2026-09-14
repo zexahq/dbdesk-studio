@@ -11,7 +11,7 @@ import {
  * When Studio runs inside a parent application (for example, Autobase) via an
  * iframe, this module is the only place that should interpret the host
  * postMessage protocol. Event names, origins, UI policy, and routing are read
- * from autobase.yaml through the shared runtime registry.
+ * from the active branch runtime registry through the shared configuration.
  *
  * This module provides:
  *
