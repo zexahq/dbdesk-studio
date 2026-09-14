@@ -1,5 +1,7 @@
 # Build stage
 FROM node:22-bookworm AS builder
+# The Vite production bundle can exceed Node's default 2 GiB heap.
+ENV NODE_OPTIONS=--max-old-space-size=4096
 RUN corepack enable && corepack prepare pnpm@10.13.1 --activate
 WORKDIR /app
 
