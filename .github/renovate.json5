@@ -1,0 +1,88 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+
+  // Migrated from Dependabot (.github/dependabot.yml). Renovate handles BOTH
+  // routine version updates and security patches across npm (the pnpm workspace),
+  // GitHub Actions, and the Docker base image.
+  extends: ["config:recommended"],
+
+  timezone: "Asia/Kolkata",
+  // Weekly, Sunday morning — approximates Dependabot's "sunday 06:00". Renovate
+  // cron requires "*" for the minutes field, so this is the 06:00–09:59 window.
+  schedule: ["* 6-9 * * 0"],
+
+  // Match Dependabot's open-pull-requests-limit (npm: 10). prHourlyLimit 0 removes
+  // Renovate's default hourly throttle so all scheduled PRs open within the window.
+  prConcurrentLimit: 10,
+  prHourlyLimit: 0,
+  rebaseWhen: "auto",
+
+  // Commit prefix "deps" with the "deps" scope, e.g. "deps(deps): ...".
+  semanticCommits: "enabled",
+  semanticCommitType: "deps",
+  semanticCommitScope: "deps",
+
+  labels: ["dependencies"],
+
+  packageRules: [
+    {
+      groupName: "radix-ui",
+      matchPackageNames: ["@radix-ui/**"],
+    },
+    {
+      groupName: "tanstack",
+      matchPackageNames: ["@tanstack/**"],
+    },
+    {
+      groupName: "monaco",
+      matchPackageNames: ["monaco-*", "@monaco-editor/**"],
+    },
+    {
+      groupName: "dnd-kit",
+      matchPackageNames: ["@dnd-kit/**"],
+    },
+    {
+      groupName: "build-tooling",
+      matchPackageNames: [
+        "vite",
+        "@vitejs/**",
+        "tailwindcss",
+        "@tailwindcss/**",
+        "tsdown",
+        "tsx",
+        "typescript",
+        "eslint*",
+        "prettier*",
+        "turbo",
+      ],
+    },
+    {
+      groupName: "react",
+      matchPackageNames: ["react", "react-dom", "@types/react*"],
+    },
+    {
+      // Bundle all GitHub Actions updates into a single PR and add its label.
+      matchManagers: ["github-actions"],
+      groupName: "github-actions",
+      addLabels: ["github-actions"],
+    },
+    {
+      // Docker base image (Dockerfile / docker-compose) — add its label.
+      matchManagers: ["dockerfile", "docker-compose"],
+      addLabels: ["docker"],
+    },
+    {
+      // Disruptive tooling majors — bump manually when ready.
+      matchPackageNames: ["vite", "typescript"],
+      matchUpdateTypes: ["major"],
+      enabled: false,
+    },
+  ],
+
+  // Bundle security/vulnerability fixes together, mirroring Dependabot's
+  // single-PR security group.
+  vulnerabilityAlerts: {
+    groupName: "security",
+    labels: ["dependencies", "security"],
+  },
+}
