@@ -374,7 +374,7 @@ export function WorkspaceSidebar({ profile, onCloseSurface }: WorkspaceSidebarPr
             defaultOpen={sidebarViewMode === 'queries'}
             className={cn(
               'group/queries',
-              sidebarViewMode !== 'queries' && sidebarViewMode !== 'dashboards' && 'hidden'
+              sidebarViewMode !== 'queries' && 'hidden'
             )}
           >
             <SidebarGroup className="gap-2">
