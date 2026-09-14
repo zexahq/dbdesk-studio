@@ -21,6 +21,7 @@ import * as React from 'react'
 import { useEffect, useState } from 'react'
 import { Button } from './ui/button'
 import { isEmbedded } from '@/lib/embedded'
+import { clearLastConnectionId } from '@/lib/last-connection'
 
 export function QuickPanel() {
   const [open, setOpen] = useState(false)
@@ -87,6 +88,8 @@ export function QuickPanel() {
 
     await disconnect(currentConnectionId)
     setCurrentConnection(null)
+    // Explicit disconnect: don't auto-restore this connection on reload.
+    clearLastConnectionId()
     reset()
     navigate({ to: '/' })
     setOpen(false)

@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { useWorkspaceTabs } from '@/hooks/use-workspace-tabs'
 import { useSqlWorkspaceStore } from '@/store/sql-workspace-store'
 import type { Tab } from '@/store/tab-store'
+import { clearLastConnectionId } from '@/lib/last-connection'
 import { useRouter } from '@tanstack/react-router'
 import { PanelLeftClose, PanelLeftOpen, Plus, Unplug } from 'lucide-react'
 import { useCallback, useMemo } from 'react'
@@ -49,6 +50,8 @@ export function WorkspaceTopbar({
       onSuccess: () => {
         resetWorkspace()
         reset()
+        // Explicit disconnect: don't auto-restore this connection on reload.
+        clearLastConnectionId()
         router.navigate({ to: '/' })
       }
     })

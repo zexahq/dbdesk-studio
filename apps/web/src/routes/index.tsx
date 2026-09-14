@@ -2,6 +2,11 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { ConnectionList } from '@/components/connections/connection-list'
 import { useEffect, useRef, useState } from 'react'
 import { dbdeskClient } from '@/api/client'
+import {
+  clearLastConnectionId,
+  getLastConnectionId,
+  isRestorableConnection,
+} from '@/lib/last-connection'
 
 interface SearchParams {
   uri?: string
@@ -22,6 +27,14 @@ function parsePostgresUri(uri: string) {
   }
 }
 
+/**
+ * Guards the auto-restore to a single attempt per full page load. Without this
+ * an in-app navigation back to the connections list would immediately bounce
+ * the user into the editor again; we only want to restore on a fresh load
+ * (e.g. a browser refresh, or the iframe being remounted by the host app).
+ */
+let hasAttemptedRestore = false
+
 export const Route = createFileRoute('/')({
   component: ConnectionPage,
   validateSearch: (search: Record<string, unknown>): SearchParams => {
@@ -36,6 +49,11 @@ function ConnectionPage() {
   const navigate = useNavigate()
   const [isConnecting, setIsConnecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Render the restoring state immediately on the first load when a previous
+  // connection is remembered, so the connections list doesn't flash first.
+  const [isRestoring, setIsRestoring] = useState(
+    () => !uri && !hasAttemptedRestore && getLastConnectionId() !== null,
+  )
   const lastAttemptedUri = useRef<string | null>(null)
 
   useEffect(() => {
@@ -84,6 +102,61 @@ function ConnectionPage() {
         })
       })
   }, [uri, navigate, isConnecting])
+
+  // Restore the last active connection on a fresh page load so a browser
+  // refresh keeps the user in their SQL workspace instead of resetting them
+  // back to the connections list. The URI flow above takes precedence.
+  useEffect(() => {
+    if (uri || hasAttemptedRestore) return
+    hasAttemptedRestore = true
+
+    const lastId = getLastConnectionId()
+    if (!lastId) {
+      setIsRestoring(false)
+      return
+    }
+
+    let cancelled = false
+    dbdeskClient
+      .getConnection(lastId)
+      .then((profile) => {
+        if (cancelled) return
+        // Only restore into a connection that still exists and has a target.
+        if (!isRestorableConnection(profile)) {
+          clearLastConnectionId()
+          setIsRestoring(false)
+          return
+        }
+        navigate({
+          to: '/connections/$connectionId',
+          params: { connectionId: lastId },
+          replace: true,
+        })
+      })
+      .catch(() => {
+        // Deleted / unreachable profile — forget it and show the list.
+        if (cancelled) return
+        clearLastConnectionId()
+        setIsRestoring(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [uri, navigate])
+
+  if (isRestoring) {
+    return (
+      <div className="flex h-full items-center justify-center p-6">
+        <div className="text-center">
+          <div className="mb-4 text-lg font-medium">Restoring session…</div>
+          <div className="text-sm text-muted-foreground">
+            Reconnecting to your last database
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (isConnecting) {
     return (
