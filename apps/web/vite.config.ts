@@ -5,14 +5,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { defineConfig, type Plugin } from "vite";
 
-const runtimeRegistryPath = path.resolve(__dirname, "../../config/runtime.yaml");
+const runtimeRegistryPath = path.resolve(__dirname, "../../config/third-party/autobase.yaml");
 const devApiProxyTarget = process.env.VITE_DEV_API_PROXY_TARGET || "http://localhost:6789";
 
 function runtimeRegistryPlugin(): Plugin {
   return {
     name: "dbdesk-runtime-registry",
     configureServer(server) {
-      server.middlewares.use("/runtime.yaml", (_request, response) => {
+      server.middlewares.use("/autobase.yaml", (_request, response) => {
         response.setHeader("Content-Type", "text/yaml; charset=utf-8");
         response.end(fs.readFileSync(runtimeRegistryPath, "utf8"));
       });
@@ -20,7 +20,7 @@ function runtimeRegistryPlugin(): Plugin {
     generateBundle() {
       this.emitFile({
         type: "asset",
-        fileName: "runtime.yaml",
+        fileName: "autobase.yaml",
         source: fs.readFileSync(runtimeRegistryPath, "utf8")
       });
     }

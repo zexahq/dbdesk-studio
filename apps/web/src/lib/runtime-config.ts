@@ -23,7 +23,7 @@ export function getRuntimeBasePath(): string {
 export async function loadRuntimeConfig(): Promise<void> {
   const basePath = getRuntimeBasePath()
   try {
-    const response = await fetch(`${basePath}runtime.yaml`, { cache: 'no-store' })
+    const response = await fetch(`${basePath}autobase.yaml`, { cache: 'no-store' })
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
     setRuntimeConfig(parseRuntimeConfig(await response.text()))
   } catch (error) {
