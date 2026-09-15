@@ -129,7 +129,7 @@ import type {
       return request(`/api/connections/${connectionId}`, { method: 'DELETE' })
     },
   
-    async runQuery(connectionId: string, query: string, options?: { limit?: number; offset?: number; queryId?: string }): Promise<QueryResult> {
+    async runQuery(connectionId: string, query: string, options?: { limit?: number; offset?: number; readOnly?: boolean; queryId?: string }): Promise<QueryResult> {
       return request<QueryResult>(`/api/connections/${connectionId}/query`, {
         method: 'POST',
         body: JSON.stringify({ query, options })

@@ -2,6 +2,7 @@ import type { QueryBatchResult, QueryResult } from '@common/types'
 import { Button } from '@/components/ui/button'
 import { cleanErrorMessage } from '@/lib/utils'
 import { ListTree, LoaderCircle, Play, Square } from 'lucide-react'
+import { ExplainPlan } from './explain-plan'
 import { SimpleTable } from './simple-table'
 
 interface QueryResultsProps {
@@ -12,6 +13,7 @@ interface QueryResultsProps {
   error?: Error | null
   onRun: () => void
   onExplain?: () => void
+  isExplainPlan?: boolean
   onCancel?: () => void
   onResultSelect?: (index: number) => void
 }
@@ -24,6 +26,7 @@ export function QueryResults({
   error,
   onRun,
   onExplain,
+  isExplainPlan,
   onCancel,
   onResultSelect
 }: QueryResultsProps) {
@@ -82,6 +85,8 @@ export function QueryResults({
           <div className="flex w-full items-center justify-center text-center text-destructive">
             <p>Error: {cleanErrorMessage(displayedError.message)}</p>
           </div>
+          ) : isExplainPlan ? (
+          <ExplainPlan result={displayedResult} />
           ) : displayedResult ? (
           <div className="w-full h-full">
             {displayedResult.totalRowCount !== undefined || displayedResult.columns.length > 0 ? (

@@ -10,6 +10,12 @@ export interface RunQueryOptions {
   limit?: number
   offset?: number
   includeTotalRowCount?: boolean
+  /**
+   * Execute on a dedicated PostgreSQL connection inside a READ ONLY
+   * transaction. Used for EXPLAIN ANALYZE so inspecting a query cannot
+   * mutate the connected database.
+   */
+  readOnly?: boolean
   queryId?: string
 }
 

@@ -127,17 +127,26 @@ export class PostgresAdapter implements SQLAdapter {
 
     const normalizedQuery = normalizeQuery(query)
 
-    if (options?.queryId) {
+    // Cancellation and read-only plans both need a dedicated client. The
+    // read-only transaction is enforced by PostgreSQL, including for writes
+    // hidden in CTEs that a client-side parser could miss.
+    if (options?.queryId || options?.readOnly) {
       const client = await pool.connect()
       try {
-        const pidResult = await client.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')
-        const pid = pidResult.rows[0]?.pid
-        if (typeof pid === 'number') {
-          this.activeQueries.set(options.queryId, pid)
+        if (options?.readOnly) {
+          await client.query('START TRANSACTION READ ONLY')
+        }
+        if (options?.queryId) {
+          const pidResult = await client.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')
+          const pid = pidResult.rows[0]?.pid
+          if (typeof pid === 'number') {
+            this.activeQueries.set(options.queryId, pid)
+          }
         }
         return await this.executeQuery(normalizedQuery, options, client, start)
       } finally {
-        this.activeQueries.delete(options.queryId)
+        if (options?.queryId) this.activeQueries.delete(options.queryId)
+        if (options?.readOnly) await client.query('ROLLBACK').catch(() => {})
         client.release()
       }
     }
