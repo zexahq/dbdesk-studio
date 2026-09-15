@@ -14,6 +14,31 @@ RUN pnpm install --frozen-lockfile \
     && pnpm --filter server run build \
     && pnpm --filter web run build
 
+# Development stage
+#
+# This target intentionally runs the source tree rather than a compiled bundle.
+# docker-compose.dev.yml bind-mounts the working tree over /app, allowing Vite
+# to apply UI edits through HMR and tsx to restart the API on server edits.
+FROM node:22-bookworm AS development
+RUN corepack enable && corepack prepare pnpm@10.13.1 --activate
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.json ./
+COPY config/ ./config/
+COPY apps/ ./apps/
+COPY packages/ ./packages/
+
+RUN pnpm install --frozen-lockfile
+
+# Polling makes file updates from macOS/Windows bind mounts reliable.
+ENV CHOKIDAR_USEPOLLING=true
+ENV CHOKIDAR_INTERVAL=300
+ENV WATCHPACK_POLLING=true
+
+EXPOSE 3001 6789
+
+CMD ["pnpm", "dev"]
+
 # Production stage
 FROM node:22-bookworm-slim
 WORKDIR /app

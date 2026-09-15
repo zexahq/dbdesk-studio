@@ -36,6 +36,8 @@ export default defineConfig({
     },
   },
   server: {
+    // Accept requests from outside a development container as well as localhost.
+    host: "0.0.0.0",
     port: process.env.FRONTEND_PORT ? parseInt(process.env.FRONTEND_PORT) : 3001,
     // Keep `/api` same-origin in the browser while forwarding it to Express.
     // Without this, Vite's SPA fallback returns index.html for API requests.

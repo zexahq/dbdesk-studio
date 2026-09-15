@@ -98,6 +98,26 @@ This starts:
 - Frontend: http://localhost:3001
 - Backend: http://localhost:6789
 
+UI changes are applied by Vite hot-module replacement; a production build is
+not required. Server source changes restart automatically through `tsx watch`.
+
+### Development in Docker or Podman
+
+Use the development Compose configuration instead of the production Dockerfile:
+
+```bash
+docker compose -f compose.dev.yaml up --build
+# or: podman compose -f compose.dev.yaml up --build
+```
+
+Open http://localhost:3001. The checkout is mounted into the container, so UI
+edits hot-reload without rebuilding the image. Rebuild only after changing
+dependencies, the Dockerfile, or the lockfile:
+
+```bash
+docker compose -f compose.dev.yaml up --build
+```
+
 ### Build
 
 ```bash
