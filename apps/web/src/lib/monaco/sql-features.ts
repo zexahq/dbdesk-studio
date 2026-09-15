@@ -1,6 +1,6 @@
 import type { ColumnInfo, SchemaWithTables } from '@common/types'
 import * as monaco from 'monaco-editor'
-import { LanguageIdEnum } from 'monaco-sql-languages'
+import { LanguageIdEnum } from 'monaco-sql-languages/esm/common/constants.js'
 
 type CompletionContext = {
   schemas: SchemaWithTables[]

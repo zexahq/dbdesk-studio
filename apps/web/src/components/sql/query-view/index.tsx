@@ -1,7 +1,6 @@
 import type { SQLConnectionProfile } from '@common/types'
 import { useCancelQuery, useRunManyQueries, useRunQuery } from '@/api/queries/query'
 import { SaveQueryDialog } from '@/components/dialogs/save-query-dialog'
-import SqlEditor from '@/components/editor/sql-editor'
 import {
   ResizableHandle,
   ResizablePanel,
@@ -12,10 +11,15 @@ import { useSqlWorkspaceStore } from '@/store/sql-workspace-store'
 import { type QueryTab, useTabStore } from '@/store/tab-store'
 import { toast } from '@/lib/toast'
 import { getQueryAtLine, hasDangerousSqlKeywords, normalizeQuery } from '@/lib/sql-parser'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { DangerousQueryDialog } from '../dialogs/dangerous-query-dialog'
 import { QueryBottombar } from './query-bottombar'
 import { QueryResults } from './query-results'
+
+// Monaco, SQL formatting, and SQL language services are only needed after a
+// query tab opens. Keeping them behind this boundary removes them from the
+// initial connections/workspace download.
+const SqlEditor = lazy(() => import('@/components/editor/sql-editor'))
 
 interface QueryViewProps {
   profile: SQLConnectionProfile
@@ -167,16 +171,18 @@ export function QueryView({ profile, activeTab }: QueryViewProps) {
       <ResizablePanelGroup direction="vertical" className="flex-1">
         <ResizablePanel defaultSize={50} minSize={20}>
           <div className="h-full w-full">
-            <SqlEditor
-              tabId={activeTab.id}
-              value={activeTab.editorContent}
-              onChange={(value) => updateQueryTab(activeTab.id, { editorContent: value })}
-              language={profile.type}
-              onExecute={handleRunQuery}
-              readOnly={activeTab.isLocked}
-              schemasWithTables={schemasWithTables}
-              tableColumns={tableColumns}
-            />
+            <Suspense fallback={<EditorLoading />}>
+              <SqlEditor
+                tabId={activeTab.id}
+                value={activeTab.editorContent}
+                onChange={(value) => updateQueryTab(activeTab.id, { editorContent: value })}
+                language={profile.type}
+                onExecute={handleRunQuery}
+                readOnly={activeTab.isLocked}
+                schemasWithTables={schemasWithTables}
+                tableColumns={tableColumns}
+              />
+            </Suspense>
           </div>
         </ResizablePanel>
         <ResizableHandle />
@@ -227,5 +233,13 @@ export function QueryView({ profile, activeTab }: QueryViewProps) {
         }}
       />
     </>
+  )
+}
+
+function EditorLoading() {
+  return (
+    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+      Loading SQL editor…
+    </div>
   )
 }

@@ -1,6 +1,5 @@
 'use client'
 
-import { BasicEditor } from '@/components/editor/basic-editor'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import { TableCell } from '@/components/ui/table'
@@ -10,6 +9,10 @@ import * as React from 'react'
 import { CellEditorSheet } from '../cell-editor-sheet'
 import type { DataTableCellProps } from '../data-table-cell.types'
 import { areCellPropsEqual, useDataTableCellContext } from './base'
+
+const BasicEditor = React.lazy(() =>
+  import('@/components/editor/basic-editor').then(({ BasicEditor }) => ({ default: BasicEditor }))
+)
 
 function TextDataTableCellInner<TData, TValue>(props: DataTableCellProps<TData, TValue>) {
   const {
@@ -130,14 +133,16 @@ function TextDataTableCellInner<TData, TValue>(props: DataTableCellProps<TData, 
                 </Button>
               </div>
               <div className="flex-1 min-h-0">
-                <BasicEditor
-                  value={editorValue}
-                  onChange={setEditorValue}
-                  onSave={handleSave}
-                  onCancel={handleCancel}
-                  height="300px"
-                  language={editorLanguage}
-                />
+                <React.Suspense fallback={<EditorLoading />}>
+                  <BasicEditor
+                    value={editorValue}
+                    onChange={setEditorValue}
+                    onSave={handleSave}
+                    onCancel={handleCancel}
+                    height="300px"
+                    language={editorLanguage}
+                  />
+                </React.Suspense>
               </div>
               <div className="flex items-center justify-end gap-2 border-t p-2 bg-muted/50">
                 <Button variant="outline" size="sm" onClick={handleCancel} className="gap-2">
@@ -161,6 +166,14 @@ function TextDataTableCellInner<TData, TValue>(props: DataTableCellProps<TData, 
         onCancel={handleCancel}
       />
     </>
+  )
+}
+
+function EditorLoading() {
+  return (
+    <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
+      Loading editor…
+    </div>
   )
 }
 

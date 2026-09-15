@@ -1,8 +1,12 @@
 'use client'
 
-import { BasicEditor } from '@/components/editor/basic-editor'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
+import { lazy, Suspense } from 'react'
+
+const BasicEditor = lazy(() =>
+  import('@/components/editor/basic-editor').then(({ BasicEditor }) => ({ default: BasicEditor }))
+)
 
 interface CellEditorSheetProps {
   open: boolean
@@ -33,14 +37,18 @@ export function CellEditorSheet({
             </div>
           </SheetTitle>
           <div className="flex-1 min-h-0 overflow-hidden">
-            <BasicEditor
-              value={value}
-              onChange={onChange}
-              onSave={onSave}
-              onCancel={onCancel}
-              height="100%"
-              language={language}
-            />
+            {open && (
+              <Suspense fallback={<EditorLoading />}>
+                <BasicEditor
+                  value={value}
+                  onChange={onChange}
+                  onSave={onSave}
+                  onCancel={onCancel}
+                  height="100%"
+                  language={language}
+                />
+              </Suspense>
+            )}
           </div>
           <div className="flex items-center justify-end gap-2 border-t p-4 bg-muted/50">
             <Button variant="outline" size="sm" onClick={onCancel} className="gap-2">
@@ -53,5 +61,13 @@ export function CellEditorSheet({
         </div>
       </SheetContent>
     </Sheet>
+  )
+}
+
+function EditorLoading() {
+  return (
+    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+      Loading editor…
+    </div>
   )
 }
