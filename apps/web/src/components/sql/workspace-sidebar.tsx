@@ -190,11 +190,6 @@ export function WorkspaceSidebar({ profile, onCloseSurface }: WorkspaceSidebarPr
 
   const selectedQuery = renameMode.queryId ? queries.find((q) => q.id === renameMode.queryId) : null
 
-  const handleNewQuery = () => {
-    onCloseSurface()
-    addQueryTab()
-  }
-
   const handleDuplicateToQuery = (schema: string, table: string) => {
     const newTabId = addQueryTab()
     updateQueryTab(newTabId, {
@@ -244,14 +239,6 @@ export function WorkspaceSidebar({ profile, onCloseSurface }: WorkspaceSidebarPr
         <SidebarHeader>
           <SidebarGroup className="flex flex-col gap-2">
             <div className="text-sm font-medium text-foreground px-2">{profile.name}</div>
-            <Button
-              variant="outline"
-              className="w-full justify-start h-10 gap-2 cursor-pointer"
-              onClick={handleNewQuery}
-            >
-              <Plus className="size-4 text-muted-foreground" />
-              New Query
-            </Button>
           </SidebarGroup>
         </SidebarHeader>
         <SidebarSeparator />
