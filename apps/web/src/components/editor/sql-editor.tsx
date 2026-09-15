@@ -3,7 +3,10 @@ import Editor from '@monaco-editor/react'
 import { useTheme } from '@/hooks/use-theme'
 import type { editor } from 'monaco-editor'
 import { KeyCode, KeyMod } from 'monaco-editor'
-import { LanguageIdEnum } from 'monaco-sql-languages'
+import { LanguageIdEnum } from 'monaco-sql-languages/esm/common/constants.js'
+// Studio currently exposes PostgreSQL connections. Loading its contribution
+// directly avoids bundling optional Flink, Hive, Spark, Trino, and MySQL modes.
+import 'monaco-sql-languages/esm/languages/pgsql/pgsql.contribution.js'
 import { format } from 'sql-formatter'
 import { registerSqlFeatures, setSqlCompletionContext } from '@/lib/monaco/sql-features'
 import { useEffect, useRef, useState } from 'react'
