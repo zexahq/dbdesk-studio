@@ -10,7 +10,12 @@ import { useSavedQueriesStore } from '@/store/saved-queries-store'
 import { useSqlWorkspaceStore } from '@/store/sql-workspace-store'
 import { type QueryTab, useTabStore } from '@/store/tab-store'
 import { toast } from '@/lib/toast'
-import { getQueryAtLine, hasDangerousSqlKeywords, normalizeQuery } from '@/lib/sql-parser'
+import {
+  getInitialStatementKeyword,
+  getQueryAtLine,
+  hasDangerousSqlKeywords,
+  normalizeQuery
+} from '@/lib/sql-parser'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { DangerousQueryDialog } from '../dialogs/dangerous-query-dialog'
 import { QueryBottombar } from './query-bottombar'
@@ -74,15 +79,26 @@ export function QueryView({ profile, activeTab }: QueryViewProps) {
       if (queries.length === 0) return
       const queryId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
       queryIdRef.current = queryId
-      updateQueryTab(activeTab.id, { queryResults: undefined, batchResults: undefined, activeResultIndex: 0 })
+      updateQueryTab(activeTab.id, {
+        queryResults: undefined,
+        batchResults: undefined,
+        activeResultIndex: 0,
+        isExplainPlan: false
+      })
 
       try {
         if (queries.length === 1) {
           const result = await runQueryMutation({ query: queries[0], options: { limit, offset, queryId } })
-          updateQueryTab(activeTab.id, { queryResults: result, limit: result.limit, offset: result.offset, totalRowCount: result.totalRowCount })
+          updateQueryTab(activeTab.id, {
+            queryResults: result,
+            limit: result.limit,
+            offset: result.offset,
+            totalRowCount: result.totalRowCount,
+            isExplainPlan: false
+          })
         } else {
           const results = await runManyMutation.mutateAsync({ queries, options: { limit, offset, queryId } })
-          updateQueryTab(activeTab.id, { batchResults: results, activeResultIndex: 0 })
+          updateQueryTab(activeTab.id, { batchResults: results, activeResultIndex: 0, isExplainPlan: false })
         }
       } catch {
         updateQueryTab(activeTab.id, { queryResults: undefined, batchResults: undefined })
@@ -126,20 +142,36 @@ export function QueryView({ profile, activeTab }: QueryViewProps) {
       toast.error('Query cannot be empty')
       return
     }
+    if (!['select', 'with', 'values'].includes(getInitialStatementKeyword(query) ?? '')) {
+      toast.error('Explain Analyze supports one read-only SELECT, WITH, or VALUES statement')
+      return
+    }
+
+    const queryId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
+    queryIdRef.current = queryId
+    updateQueryTab(activeTab.id, {
+      queryResults: undefined,
+      batchResults: undefined,
+      activeResultIndex: 0,
+      isExplainPlan: false
+    })
     try {
       const result = await runQueryMutation({
-        query: `EXPLAIN (FORMAT JSON) ${query}`,
-        options: { queryId: globalThis.crypto?.randomUUID?.() }
+        query: `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${query}`,
+        options: { queryId, readOnly: true }
       })
       updateQueryTab(activeTab.id, {
         queryResults: result,
         batchResults: undefined,
         activeResultIndex: 0,
         totalRowCount: undefined,
-        lastExecutedQuery: `EXPLAIN (FORMAT JSON) ${query}`
+        lastExecutedQuery: `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${query}`,
+        isExplainPlan: true
       })
     } catch {
       updateQueryTab(activeTab.id, { queryResults: undefined, batchResults: undefined })
+    } finally {
+      queryIdRef.current = null
     }
   }
 
@@ -195,6 +227,7 @@ export function QueryView({ profile, activeTab }: QueryViewProps) {
             error={executionError ?? runManyMutation.error}
             onRun={handleRunQuery}
             onExplain={() => void handleExplain()}
+            isExplainPlan={activeTab.isExplainPlan}
             onCancel={() => {
               if (queryIdRef.current) void cancelMutation.mutateAsync(queryIdRef.current)
             }}
@@ -203,7 +236,7 @@ export function QueryView({ profile, activeTab }: QueryViewProps) {
         </ResizablePanel>
       </ResizablePanelGroup>
 
-      {activeTab.queryResults && (
+      {activeTab.queryResults && !activeTab.isExplainPlan && (
         <QueryBottombar
           totalRows={activeTab.totalRowCount ?? activeTab.queryResults.rowCount}
           executionTime={activeTab.queryResults.executionTime}
