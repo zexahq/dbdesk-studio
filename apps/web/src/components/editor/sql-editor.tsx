@@ -9,7 +9,7 @@ import { LanguageIdEnum } from 'monaco-sql-languages/esm/common/constants.js'
 import 'monaco-sql-languages/esm/languages/pgsql/pgsql.contribution.js'
 import { format } from 'sql-formatter'
 import { registerSqlFeatures, setSqlCompletionContext } from '@/lib/monaco/sql-features'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 
 interface SqlEditorProps {
   tabId: string
@@ -40,9 +40,7 @@ export default function SqlEditor({
   const containerRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
   const onExecuteRef = useRef(onExecute)
-  const heightRef = useRef('400px')
   const resizeFrameRef = useRef<number | null>(null)
-  const [height, setHeight] = useState('400px')
 
   const editorTheme = theme === 'dark' ? 'vs-dark' : 'vs'
   const languageId = getLanguageId(language)
@@ -57,25 +55,28 @@ export default function SqlEditor({
     onExecuteRef.current = onExecute
   }, [onExecute])
 
-  useEffect(() => {
-    const updateHeight = () => {
-      if (containerRef.current) {
-        const nextHeight = `${containerRef.current.clientHeight}px`
-        if (nextHeight !== heightRef.current) {
-          heightRef.current = nextHeight
-          setHeight(nextHeight)
-        }
-      }
+  const layoutEditor = () => {
+    const container = containerRef.current
+    const editor = editorRef.current
+    // Lazy loading can resolve while the resizable panel is still measuring
+    // at 0px. Never persist that transient size or the editor becomes an
+    // invisible, unfocusable surface.
+    if (!container || !editor || container.clientWidth === 0 || container.clientHeight === 0) {
+      return
     }
 
-    updateHeight()
+    editor.layout({ width: container.clientWidth, height: container.clientHeight })
+  }
+
+  useEffect(() => {
     const resizeObserver = new ResizeObserver(() => {
       if (resizeFrameRef.current !== null) cancelAnimationFrame(resizeFrameRef.current)
-      resizeFrameRef.current = requestAnimationFrame(updateHeight)
+      resizeFrameRef.current = requestAnimationFrame(layoutEditor)
     })
     if (containerRef.current) {
       resizeObserver.observe(containerRef.current)
     }
+    layoutEditor()
 
     return () => {
       resizeObserver.disconnect()
@@ -85,6 +86,7 @@ export default function SqlEditor({
 
   const handleEditorDidMount = (editorInstance: editor.IStandaloneCodeEditor) => {
     editorRef.current = editorInstance
+    requestAnimationFrame(layoutEditor)
 
     // Register Ctrl+Enter keybinding for query execution
     editorInstance.addAction({
@@ -118,9 +120,9 @@ export default function SqlEditor({
   }
 
   return (
-    <div ref={containerRef} className="h-full w-full">
+    <div ref={containerRef} className="h-full min-h-0 w-full">
       <Editor
-        height={height}
+        height="100%"
         path={tabId}
         language={languageId}
         theme={editorTheme}
