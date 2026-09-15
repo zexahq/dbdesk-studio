@@ -1,0 +1,31 @@
+services:
+  dbdesk-studio-dev:
+    build:
+      context: .
+      target: development
+    ports:
+      - "3001:3001" # Vite UI with hot-module replacement
+      - "6789:6789" # API server
+    environment:
+      # The browser talks to Vite; Vite proxies /api to this service's API.
+      VITE_DEV_API_PROXY_TARGET: http://localhost:6789
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "300"
+    volumes:
+      # Source changes on the host are immediately visible to Vite and tsx.
+      - .:/app
+      # Keep Linux dependencies inside named volumes, not in the host checkout.
+      - dbdesk_studio_root_node_modules:/app/node_modules
+      - dbdesk_studio_web_node_modules:/app/apps/web/node_modules
+      - dbdesk_studio_server_node_modules:/app/apps/server/node_modules
+      - dbdesk_studio_cli_node_modules:/app/packages/cli/node_modules
+      - dbdesk_studio_common_node_modules:/app/packages/common/node_modules
+      - dbdesk_studio_env_node_modules:/app/packages/env/node_modules
+
+volumes:
+  dbdesk_studio_root_node_modules:
+  dbdesk_studio_web_node_modules:
+  dbdesk_studio_server_node_modules:
+  dbdesk_studio_cli_node_modules:
+  dbdesk_studio_common_node_modules:
+  dbdesk_studio_env_node_modules:
