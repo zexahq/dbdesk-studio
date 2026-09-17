@@ -131,6 +131,12 @@ export default function SqlEditor({
         onMount={handleEditorDidMount}
         options={{
           readOnly,
+          // Keep the editing affordances unambiguous in the terminal-like query
+          // surface. Monaco otherwise chooses a platform/theme-dependent cursor.
+          cursorStyle: 'line',
+          cursorBlinking: 'blink',
+          cursorWidth: 2,
+          renderLineHighlight: 'line',
           minimap: { enabled: false },
           scrollBeyondLastLine: false,
           smoothScrolling: false,
@@ -145,7 +151,15 @@ export default function SqlEditor({
           stickyScroll: { enabled: false },
           renderWhitespace: 'selection',
           tabSize: 2,
-          bracketPairColorization: { enabled: false }
+          bracketPairColorization: { enabled: false },
+          // Always show a vertical track so long statements are clearly
+          // scrollable; horizontal scrolling remains available when needed.
+          scrollbar: {
+            vertical: 'visible',
+            horizontal: 'auto',
+            verticalScrollbarSize: 12,
+            useShadows: false
+          }
         }}
       />
     </div>

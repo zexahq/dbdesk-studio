@@ -1,5 +1,11 @@
 import type { QueryResultRow, SQLConnectionProfile } from '@common/types'
-import { useDeleteTableRows, useTableData, useUpdateTableCell } from '@/api/queries/schema'
+import {
+  useDeleteTableRows,
+  useInsertTableRow,
+  useTableData,
+  useTableIntrospection,
+  useUpdateTableCell
+} from '@/api/queries/schema'
 import { toast } from '@/lib/toast'
 import type { TableTab } from '@/store/tab-store'
 import { useTabStore } from '@/store/tab-store'
@@ -7,6 +13,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { RowSelectionState } from '@tanstack/react-table'
 import { useCallback, useEffect, useState } from 'react'
 import { SqlTable } from '../table'
+import { AddRowSheet } from './add-row-sheet'
 import { SqlBottombar } from './sql-bottombar'
 import { SqlStructure } from './sql-structure'
 import { SqlTopbar } from './sql-topbar'
@@ -22,10 +29,12 @@ export function TableView({ profile, activeTab }: TableViewProps) {
   const makeTabPermanent = useTabStore((s) => s.makeTabPermanent)
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const [addRowOpen, setAddRowOpen] = useState(false)
 
   // Reset ephemeral state when tab changes
   useEffect(() => {
     setRowSelection({})
+    setAddRowOpen(false)
   }, [activeTab.id])
   const {
     data: tableData,
@@ -49,6 +58,12 @@ export function TableView({ profile, activeTab }: TableViewProps) {
     profile.id
   )
   const { mutateAsync: updateCellMutation } = useUpdateTableCell(profile.id)
+  const { data: tableInfo } = useTableIntrospection(
+    profile.id,
+    activeTab.schema,
+    activeTab.table
+  )
+  const insertRowMutation = useInsertTableRow(profile.id, activeTab.schema, activeTab.table)
 
   const refreshTableData = useCallback(() => {
     queryClient.invalidateQueries({
@@ -152,6 +167,7 @@ export function TableView({ profile, activeTab }: TableViewProps) {
         onDelete={handleDeleteSelectedRows}
         isDeletePending={isDeletePending}
         rowSelectionCount={Object.keys(rowSelection).length}
+        onAddRow={() => setAddRowOpen(true)}
       />
       <div className="flex-1 overflow-hidden">
         {activeTab.view === 'tables' && (
@@ -184,7 +200,16 @@ export function TableView({ profile, activeTab }: TableViewProps) {
           onOffsetChange={handleOffsetChange}
         />
       )}
-
+      <AddRowSheet
+        open={addRowOpen}
+        onOpenChange={setAddRowOpen}
+        columns={tableInfo?.columns ?? []}
+        tableName={activeTab.table}
+        isPending={insertRowMutation.isPending}
+        onSubmit={(values) => {
+          insertRowMutation.mutate(values, { onSuccess: () => setAddRowOpen(false) })
+        }}
+      />
     </>
   )
 }

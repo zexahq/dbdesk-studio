@@ -388,7 +388,7 @@ export function useDataTable<TData, TValue = unknown>({
     [onCellUpdate, tableRef2]
   )
 
-  // Handle cell click - only focuses, never starts editing
+  // Handle cell click - focus and start editing immediately
   const onCellClick = useCallback(
     (rowIndex: number, columnId: string, event?: MouseEvent) => {
       // Ignore right-click
@@ -401,10 +401,9 @@ export function useDataTable<TData, TValue = unknown>({
         return
       }
 
-      // Always just focus on single click, never start editing
-      focusCell(rowIndex, columnId)
+      onCellEditingStart(rowIndex, columnId)
     },
-    [focusCell]
+    [onCellEditingStart]
   )
 
   // Handle cell double click - starts editing

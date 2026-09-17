@@ -3,7 +3,7 @@ import { getCellVariant } from '@/lib/data-table'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Sheet, SheetContent, SheetFooter, SheetTitle } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetTitle } from '@/components/ui/sheet'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useEffect, useState, type FormEvent } from 'react'
 
@@ -37,15 +37,18 @@ export function AddRowSheet({ open, onOpenChange, columns, tableName, onSubmit, 
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-lg gap-0">
+      <SheetContent side="right" className="w-full sm:max-w-3xl gap-0">
         <SheetTitle className="border-b px-6 py-4">Add row to {tableName}</SheetTitle>
+        <SheetDescription className="sr-only">
+          Enter values for the new row. Database defaults are used for fields left empty.
+        </SheetDescription>
         <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
-          <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
+          <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
             {columns.map((column) => {
               const variant = getCellVariant(column.type, column.enumValues)
               const value = values[column.name] ?? ''
               return (
-                <div key={column.name} className="space-y-1.5">
+                <div key={column.name} className="space-y-2">
                   <Label htmlFor={`new-row-${column.name}`} className="flex justify-between">
                     <span>{column.name}</span>
                     <span className="text-xs text-muted-foreground">{column.type}</span>

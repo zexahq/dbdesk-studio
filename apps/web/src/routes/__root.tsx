@@ -1,11 +1,19 @@
 import { Outlet, createRootRouteWithContext } from "@tanstack/react-router";
-import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
+import { lazy, Suspense } from "react";
 
 import { Toaster } from "@/components/ui/sonner";
 
 import "@/styles/base.css";
 import "@/styles/main.css";
 import { MainSidebar } from "@/components/main-sidebar";
+
+const RouterDevtools = import.meta.env.DEV
+  ? lazy(() =>
+      import("@tanstack/react-router-devtools").then(({ TanStackRouterDevtools }) => ({
+        default: TanStackRouterDevtools,
+      })),
+    )
+  : null;
 
 export interface RouterAppContext {}
 
@@ -38,7 +46,11 @@ function RootComponent() {
       <Outlet />
     </div>
     <Toaster position="top-right" />
-    <TanStackRouterDevtools position="bottom-right" />
+    {RouterDevtools && (
+      <Suspense fallback={null}>
+        <RouterDevtools position="bottom-right" />
+      </Suspense>
+    )}
   </div>
 
   );

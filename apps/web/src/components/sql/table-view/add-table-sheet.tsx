@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Sheet, SheetContent, SheetFooter, SheetTitle } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetTitle } from '@/components/ui/sheet'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Plus, Trash2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
@@ -67,6 +67,9 @@ export function AddTableSheet({ open, onOpenChange, connectionId, schema }: AddT
     <Sheet open={open} onOpenChange={(nextOpen) => { onOpenChange(nextOpen); if (!nextOpen) reset() }}>
       <SheetContent side="right" className="w-full sm:max-w-3xl gap-0">
         <SheetTitle className="border-b px-6 py-4">Create table in {schema}</SheetTitle>
+        <SheetDescription className="sr-only">
+          Name the table and define at least one column.
+        </SheetDescription>
         <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-6 py-5">
           <div className="space-y-1.5">
             <Label htmlFor="new-table-name">Table name</Label>
@@ -82,7 +85,7 @@ export function AddTableSheet({ open, onOpenChange, connectionId, schema }: AddT
             {columns.length === 0 ? (
               <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">Add at least one column.</div>
             ) : columns.map((column, index) => (
-              <div key={index} className="space-y-3 rounded-md border p-3">
+              <div key={index} className="space-y-4 rounded-md border p-4">
                 <div className="grid gap-2 sm:grid-cols-[1.2fr_1fr_auto]">
                   <Input value={column.name} placeholder="Column name" onChange={(event) => updateColumn(index, { name: event.target.value })} />
                   <Select value={column.type} onValueChange={(type) => updateColumn(index, { type })}>

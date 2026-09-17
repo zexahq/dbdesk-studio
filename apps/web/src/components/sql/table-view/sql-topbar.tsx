@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { cn } from '@/lib/utils'
 import { type TableTab, useTabStore } from '@/store/tab-store'
-import { Layers, RefreshCcw, Table } from 'lucide-react'
+import { Layers, Plus, RefreshCcw, Table } from 'lucide-react'
 import { useState } from 'react'
 import { DeleteConfirmationDialog } from '../dialogs/delete-confirmation-dialog'
 import { TableFilterPopover } from './table-filter-popover'
@@ -17,6 +17,7 @@ interface SqlTopbarProps {
   onDelete: () => Promise<void> | void
   isDeletePending: boolean
   rowSelectionCount: number
+  onAddRow: () => void
 }
 
 export function SqlTopbar({
@@ -26,7 +27,8 @@ export function SqlTopbar({
   columns = [],
   onDelete,
   isDeletePending,
-  rowSelectionCount
+  rowSelectionCount,
+  onAddRow
 }: SqlTopbarProps) {
   const [open, setOpen] = useState(false)
 
@@ -86,6 +88,12 @@ export function SqlTopbar({
               activeSorts={activeTab.sortRules}
               onApply={handleSortRulesChange}
             />
+          )}
+          {activeTab.view === 'tables' && (
+            <Button type="button" variant="ghost" className="h-8 cursor-pointer gap-2" onClick={onAddRow}>
+              <Plus className="size-4" />
+              <span className="text-sm">Add row</span>
+            </Button>
           )}
           <DeleteConfirmationDialog
             open={open}
