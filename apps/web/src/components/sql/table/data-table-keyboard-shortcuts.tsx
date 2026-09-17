@@ -104,7 +104,7 @@ function DataTableKeyboardShortcutsImpl() {
             description: 'Start editing cell'
           },
           {
-            keys: ['Double Click'],
+            keys: ['Click'],
             description: 'Start editing cell'
           },
           {

@@ -48,7 +48,7 @@ export function ConnectionCard({ profile, onEdit }: ConnectionCardProps) {
 
   const lastConnectedLabel = useMemo(() => {
     if (!profile.lastConnectedAt) return 'Never connected'
-    return `Last connected ${formatDistanceToNow(profile.lastConnectedAt, { addSuffix: true })}`
+    return `Last connected ${formatDistanceToNow(new Date(String(profile.lastConnectedAt)), { addSuffix: true })}`
   }, [profile.lastConnectedAt])
 
   const handleConnect = async () => {

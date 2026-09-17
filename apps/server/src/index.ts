@@ -16,7 +16,7 @@ import type {
 import cors from 'cors'
 import express, { type Application, type NextFunction, type Request, type Response } from 'express'
 import { adapterRegistry, listRegisteredAdapters } from './adapters'
-import { connectionManager, ConnectionManager } from './connectionManager'
+import { connectionManager } from './connectionManager'
 import {
   deleteDashboard,
   exportDashboards,
@@ -38,6 +38,12 @@ function generateUUID(): string {
   bytes[8] = (bytes[8] & 0x3f) | 0x80
   const h = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
+}
+
+async function connectProfile(profile: ConnectionProfile, projectId?: string): Promise<void> {
+  await connectionManager.createConnection(profile.id, profile.type, profile.options)
+  profile.lastConnectedAt = new Date()
+  await saveProfile(profile, projectId)
 }
 
 const app: Application = express()
@@ -191,9 +197,8 @@ app.post('/api/connections/from-uri', async (req: Request, res: Response, next: 
       }
 
       // Re-establish the connection
-      const manager = ConnectionManager.getInstance()
       try {
-        await manager.createConnection(existingProfile.id, type, existingOpts)
+        await connectProfile(existingProfile, projectId)
       } catch {
         // Connection failed, but profile is valid — still return it
       }
@@ -217,9 +222,8 @@ app.post('/api/connections/from-uri', async (req: Request, res: Response, next: 
     await saveProfile(profile, projectId)
 
     // Immediately establish the connection
-    const manager = ConnectionManager.getInstance()
     try {
-      await manager.createConnection(profile.id, type, options)
+      await connectProfile(profile, projectId)
     } catch (connectionError) {
       // Roll back the saved profile if connection creation fails
       await deleteProfile(profile.id, projectId)
@@ -328,15 +332,15 @@ app.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const connectionId = getRouteParam(req.params, 'connectionId')
-      const manager = ConnectionManager.getInstance()
-      const profile = await getProfile(connectionId, getProjectId(req))
+      const projectId = getProjectId(req)
+      const profile = await getProfile(connectionId, projectId)
 
       if (!profile) {
         res.status(404).json({ error: 'Connection not found' })
         return
       }
 
-      await manager.createConnection(connectionId, profile.type, profile.options)
+      await connectProfile(profile, projectId)
       res.json({ success: true, connectionId })
     } catch (err) {
       next(err)

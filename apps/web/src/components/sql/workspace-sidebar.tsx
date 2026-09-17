@@ -27,7 +27,7 @@ import {
   SidebarSeparator
 } from '@/components/ui/sidebar'
 import { toast } from '@/lib/toast'
-import { cn } from '@/lib/utils'
+import { cleanErrorMessage, cn } from '@/lib/utils'
 import { useSavedQueriesStore } from '@/store/saved-queries-store'
 import { DASHBOARD_QUERY_KEYS, useDashboardStore } from '@/store/dashboard-store'
 import { useSqlWorkspaceStore } from '@/store/sql-workspace-store'
@@ -190,6 +190,25 @@ export function WorkspaceSidebar({ profile, onCloseSurface }: WorkspaceSidebarPr
 
   const selectedQuery = renameMode.queryId ? queries.find((q) => q.id === renameMode.queryId) : null
 
+  const handleNewQuery = () => {
+    onCloseSurface()
+    addQueryTab()
+  }
+
+  const handleCreateSchema = async () => {
+    const schema = window.prompt('Schema name')?.trim()
+    if (!schema) return
+    try {
+      await dbdeskClient.runQuery(profile.id, `CREATE SCHEMA "${schema.replaceAll('"', '""')}"`)
+      await queryClient.invalidateQueries({ queryKey: ['schemasWithTables', profile.id] })
+      toast.success(`Schema ${schema} created`)
+    } catch (error) {
+      toast.error('Failed to create schema', {
+        description: cleanErrorMessage(error instanceof Error ? error.message : String(error))
+      })
+    }
+  }
+
   const handleDuplicateToQuery = (schema: string, table: string) => {
     const newTabId = addQueryTab()
     updateQueryTab(newTabId, {
@@ -239,6 +258,14 @@ export function WorkspaceSidebar({ profile, onCloseSurface }: WorkspaceSidebarPr
         <SidebarHeader>
           <SidebarGroup className="flex flex-col gap-2">
             <div className="text-sm font-medium text-foreground px-2">{profile.name}</div>
+            <Button
+              variant="outline"
+              className="w-full justify-start h-10 gap-2 cursor-pointer"
+              onClick={handleNewQuery}
+            >
+              <Plus className="size-4 text-muted-foreground" />
+              New Query
+            </Button>
           </SidebarGroup>
         </SidebarHeader>
         <SidebarSeparator />
@@ -253,6 +280,14 @@ export function WorkspaceSidebar({ profile, onCloseSurface }: WorkspaceSidebarPr
                   </span>
                   <ChevronRight className="size-4 transition-transform group-data-[state=open]/schema:rotate-90" />
                 </CollapsibleTrigger>
+                <button
+                  onClick={() => void handleCreateSchema()}
+                  className="h-10 w-10 flex items-center justify-center border rounded-md hover:bg-accent transition-colors cursor-pointer"
+                  title="Create schema"
+                >
+                  <Plus className="size-4" />
+                  <span className="sr-only">Create schema</span>
+                </button>
                 <button
                   onClick={handleRefreshSchemas}
                   disabled={isRefreshing}

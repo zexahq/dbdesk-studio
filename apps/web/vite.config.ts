@@ -28,6 +28,7 @@ function runtimeRegistryPlugin(): Plugin {
 }
 
 export default defineConfig({
+  base: "./",
   plugins: [runtimeRegistryPlugin(), tailwindcss(), tanstackRouter({}), react()],
   resolve: {
     alias: {
