@@ -40,7 +40,7 @@ function ConnectionPage() {
   // idempotent on the server (it reuses an existing pool entry), so this is
   // safe to call on every fresh load without disturbing an open connection.
   useEffect(() => {
-    if (!profile) return
+    if (!profile || useSqlWorkspaceStore.getState().disconnectingId === connectionId) return
 
     if (alreadyConnected) {
       if (getRuntimeConfig().embedding.connection.restoreLastConnection) setLastConnectionId(connectionId)
@@ -55,6 +55,7 @@ function ConnectionPage() {
     setIsEnsuring(true)
     setConnectError(null)
 
+    useSqlWorkspaceStore.getState().setDisconnecting(null)
     dbdeskClient
       .connect(connectionId)
       .then(() => {

@@ -18,7 +18,7 @@ import type {
 } from '@common/types'
 import type { PostgreSQLSslMode } from '@common/types/sql'
 import { performance } from 'node:perf_hooks'
-import { Pool, type PoolClient, type QueryResult as PgQueryResult } from 'pg'
+import { Pool } from 'pg'
 
 import type {
   ExportTableOptions,
@@ -35,7 +35,7 @@ import {
   buildUpdateCellQuery
 } from '../lib/postgres/queries'
 import { parsePostgresArray, quoteIdentifier } from '../lib/postgres/utils'
-import { isSelectableQuery, normalizeQuery } from '../lib/sql-parser'
+import { PostgresQueryExecution } from '../lib/postgres/execution'
 
 const DEFAULT_TIMEOUT_MS = 30_000
 
@@ -63,7 +63,7 @@ function getSslConfig(sslMode?: PostgreSQLSslMode): boolean | object {
 
 export class PostgresAdapter implements SQLAdapter {
   private pool: Pool | null = null
-  private readonly activeQueries = new Map<string, number>()
+  private queryExecution: PostgresQueryExecution | null = null
 
   constructor(private readonly options: SQLConnectionOptions) {}
 
@@ -81,7 +81,8 @@ export class PostgresAdapter implements SQLAdapter {
       ssl: getSslConfig(this.options.sslMode),
       max: 10,
       idleTimeoutMillis: DEFAULT_TIMEOUT_MS,
-      connectionTimeoutMillis: DEFAULT_TIMEOUT_MS
+      connectionTimeoutMillis: DEFAULT_TIMEOUT_MS,
+      statement_timeout: 20_000
     })
 
     // node-postgres emits 'error' on the pool when an *idle* client hits a
@@ -119,130 +120,23 @@ export class PostgresAdapter implements SQLAdapter {
 
     await this.pool.end()
     this.pool = null
+    this.queryExecution = null
   }
 
-  public async runQuery(query: string, options?: RunQueryOptions): Promise<QueryResult> {
-    const pool = this.ensurePool()
-    const start = performance.now()
-
-    const normalizedQuery = normalizeQuery(query)
-
-    // Cancellation and read-only plans both need a dedicated client. The
-    // read-only transaction is enforced by PostgreSQL, including for writes
-    // hidden in CTEs that a client-side parser could miss.
-    if (options?.queryId || options?.readOnly) {
-      const client = await pool.connect()
-      try {
-        if (options?.readOnly) {
-          await client.query('START TRANSACTION READ ONLY')
-        }
-        if (options?.queryId) {
-          const pidResult = await client.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')
-          const pid = pidResult.rows[0]?.pid
-          if (typeof pid === 'number') {
-            this.activeQueries.set(options.queryId, pid)
-          }
-        }
-        return await this.executeQuery(normalizedQuery, options, client, start)
-      } finally {
-        if (options?.queryId) this.activeQueries.delete(options.queryId)
-        if (options?.readOnly) await client.query('ROLLBACK').catch(() => {})
-        client.release()
-      }
-    }
-
-    return this.executeQuery(normalizedQuery, options, pool, start)
+  public runQuery(query: string, options?: RunQueryOptions): Promise<QueryResult> {
+    return this.execution().runQuery(query, options)
   }
 
-  public async runManyQueries(
-    queries: string[],
-    options?: RunQueryOptions
-  ): Promise<QueryBatchResult[]> {
-    const pool = this.ensurePool()
-    const client = await pool.connect()
-    const results: QueryBatchResult[] = []
-    const queryId = options?.queryId
-
-    try {
-      if (queryId) {
-        const pidResult = await client.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')
-        const pid = pidResult.rows[0]?.pid
-        if (typeof pid === 'number') this.activeQueries.set(queryId, pid)
-      }
-      for (const query of queries) {
-        const normalizedQuery = normalizeQuery(query).trim()
-        if (!normalizedQuery) continue
-
-        const start = performance.now()
-        try {
-          const result = await this.executeQuery(normalizedQuery, options, client, start)
-          results.push({
-            query: normalizedQuery,
-            result,
-            executionTime: result.executionTime ?? performance.now() - start
-          })
-        } catch (error) {
-          results.push({
-            query: normalizedQuery,
-            error: error instanceof Error ? error.message : 'Failed to execute query',
-            executionTime: performance.now() - start
-          })
-          break
-        }
-      }
-    } finally {
-      if (queryId) this.activeQueries.delete(queryId)
-      client.release()
-    }
-
-    return results
+  public runManyQueries(queries: string[], options?: RunQueryOptions): Promise<QueryBatchResult[]> {
+    return this.execution().runManyQueries(queries, options)
   }
 
-  private async executeQuery(
-    normalizedQuery: string,
-    options: RunQueryOptions | undefined,
-    runner: Pool | PoolClient,
-    start: number
-  ): Promise<QueryResult> {
-
-    // Check if this is a SELECT query that can be paginated
-    if (options && isSelectableQuery(normalizedQuery)) {
-      // Execute count query and paginated query in parallel
-      const countQuery = `SELECT COUNT(*) AS total FROM (${normalizedQuery}) AS subquery`
-      const paginatedQuery = `SELECT * FROM (${normalizedQuery}) AS subquery LIMIT ${options.limit ?? 50} OFFSET ${options.offset ?? 0}`
-
-      const [countResult, pageResult] = await Promise.all([
-        runner.query<{ total: number }>(countQuery),
-        runner.query<QueryResultRow>(paginatedQuery)
-      ])
-
-      const executionTime = performance.now() - start
-      const totalRow = countResult.rows[0]?.total
-      const totalRowCount = typeof totalRow === 'number' ? totalRow : Number(totalRow ?? 0)
-
-      const transformedResult = this.transformResult(pageResult, executionTime)
-      return {
-        ...transformedResult,
-        totalRowCount,
-        limit: options.limit,
-        offset: options.offset
-      }
-    }
-
-    // For non-SELECT queries or when no pagination options provided
-    const result = await runner.query(normalizedQuery)
-    const executionTime = performance.now() - start
-
-    return this.transformResult(result, executionTime)
+  public cancelQuery(queryId: string): Promise<boolean> {
+    return this.execution().cancelQuery(queryId)
   }
 
-  public async cancelQuery(queryId: string): Promise<boolean> {
-    const pid = this.activeQueries.get(queryId)
-    if (typeof pid !== 'number') return false
-
-    const pool = this.ensurePool()
-    await pool.query('SELECT pg_cancel_backend($1)', [pid])
-    return true
+  private execution(): PostgresQueryExecution {
+    return this.queryExecution ??= new PostgresQueryExecution(this.ensurePool())
   }
 
   public async listSchemas(): Promise<string[]> {
@@ -624,20 +518,6 @@ export class PostgresAdapter implements SQLAdapter {
     }
 
     return this.pool
-  }
-
-  private transformResult(
-    result: PgQueryResult<QueryResultRow>,
-    executionTime: number
-  ): QueryResult {
-    const columns = result.fields.map((field) => field.name)
-
-    return {
-      rows: result.rows,
-      columns,
-      rowCount: typeof result.rowCount === 'number' ? result.rowCount : result.rows.length,
-      executionTime
-    }
   }
 
   private async queryColumns(pool: Pool, schema: string, table: string) {

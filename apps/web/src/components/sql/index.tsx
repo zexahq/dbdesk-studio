@@ -61,11 +61,7 @@ export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
 
   // Sync connectionId from route to store and load workspace on mount/connection change
   useEffect(() => {
-    if (currentConnectionId === profile.id) {
-      // Already synced, skip
-      return
-    }
-
+    if (useSqlWorkspaceStore.getState().disconnectingId === profile.id) return
     // Prevent double initialization in strict mode
     if (lastInitializedConnectionId.current === profile.id) return
     lastInitializedConnectionId.current = profile.id
@@ -75,6 +71,8 @@ export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
 
       try {
         const savedWorkspace = await dbdeskClient.loadWorkspace(profile.id)
+        if (useSqlWorkspaceStore.getState().currentConnectionId !== profile.id ||
+            useSqlWorkspaceStore.getState().disconnectingId === profile.id) return
         if (savedWorkspace) {
           loadFromSerialized(savedWorkspace.tabs, savedWorkspace.activeTabId)
         } else {
@@ -82,7 +80,11 @@ export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
         }
       } catch (error) {
         console.warn('Failed to load workspace, using defaults:', error)
-        reset()
+        if (useSqlWorkspaceStore.getState().currentConnectionId === profile.id &&
+            useSqlWorkspaceStore.getState().disconnectingId !== profile.id) reset()
+      } finally {
+        const state = useSqlWorkspaceStore.getState()
+        if (state.currentConnectionId === profile.id && state.disconnectingId !== profile.id) state.setWorkspaceReady(profile.id)
       }
     }
 

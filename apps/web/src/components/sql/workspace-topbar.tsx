@@ -9,6 +9,7 @@ import {
 } from '@dnd-kit/core'
 import { horizontalListSortingStrategy, SortableContext } from '@dnd-kit/sortable'
 import { useDisconnect } from '@/api/queries/connections'
+import { toast } from '@/lib/toast'
 import { TabNavigation } from '@/components/sql/table-view/tab-navigation'
 import { Button } from '@/components/ui/button'
 import { useWorkspaceTabs } from '@/hooks/use-workspace-tabs'
@@ -66,7 +67,8 @@ export function WorkspaceTopbar({
         // Explicit disconnect: don't auto-restore this connection on reload.
         if (getRuntimeConfig().embedding.connection.clearRememberedOnDisconnect) clearLastConnectionId()
         router.navigate({ to: '/' })
-      }
+      },
+      onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not disconnect')
     })
   }
 

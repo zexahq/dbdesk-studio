@@ -223,13 +223,14 @@ export function QueryView({ profile, activeTab }: QueryViewProps) {
             queryResults={activeTab.queryResults}
             batchResults={activeTab.batchResults}
             activeResultIndex={activeTab.activeResultIndex}
-            isLoading={isExecuting || runManyMutation.isPending}
+            isLoading={activeTab.hostRunning || isExecuting || runManyMutation.isPending}
             error={executionError ?? runManyMutation.error}
             onRun={handleRunQuery}
             onExplain={() => void handleExplain()}
             isExplainPlan={activeTab.isExplainPlan}
             onCancel={() => {
-              if (queryIdRef.current) void cancelMutation.mutateAsync(queryIdRef.current)
+              const id = activeTab.hostRunning ? activeTab.hostActionId : queryIdRef.current
+              if (id) void cancelMutation.mutateAsync(id)
             }}
             onResultSelect={(index) => updateQueryTab(activeTab.id, { activeResultIndex: index })}
           />

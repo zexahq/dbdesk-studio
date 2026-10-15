@@ -47,6 +47,8 @@ export interface QueryTab extends BaseTab {
   queryResults?: QueryResult
   batchResults?: QueryBatchResult[]
   activeResultIndex?: number
+  hostActionId?: string
+  hostRunning?: boolean
   lastExecutedQuery?: string
   isExplainPlan?: boolean
   isLocked: boolean

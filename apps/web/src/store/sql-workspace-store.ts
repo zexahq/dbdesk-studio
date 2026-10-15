@@ -5,6 +5,10 @@ export type WorkspaceSurface = null
 
 interface SqlWorkspaceStore {
   currentConnectionId: string | null
+  disconnectingId: string | null
+  workspaceReadyId: string | null
+  setWorkspaceReady: (id: string | null) => void
+  setDisconnecting: (id: string | null) => void
   schemasWithTables: SchemaWithTables[]
   tableColumns: Record<string, ColumnInfo[]>
   sidebarViewMode: 'schemas' | 'queries' | 'dashboards'
@@ -20,6 +24,10 @@ interface SqlWorkspaceStore {
 
 export const useSqlWorkspaceStore = create<SqlWorkspaceStore>((set) => ({
   currentConnectionId: null,
+  disconnectingId: null,
+  workspaceReadyId: null,
+  setWorkspaceReady: (workspaceReadyId) => set({ workspaceReadyId }),
+  setDisconnecting: (disconnectingId) => set({ disconnectingId }),
   schemasWithTables: [],
   tableColumns: {},
   sidebarViewMode: 'schemas',
@@ -28,6 +36,7 @@ export const useSqlWorkspaceStore = create<SqlWorkspaceStore>((set) => ({
   setCurrentConnection: (connectionId) =>
     set({
       currentConnectionId: connectionId,
+      workspaceReadyId: null,
       schemasWithTables: [],
       tableColumns: {},
       activeSurface: null
@@ -39,6 +48,7 @@ export const useSqlWorkspaceStore = create<SqlWorkspaceStore>((set) => ({
   reset: () =>
     set({
       currentConnectionId: null,
+      workspaceReadyId: null,
       schemasWithTables: [],
       tableColumns: {},
       sidebarViewMode: 'schemas',

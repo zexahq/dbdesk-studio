@@ -41,6 +41,7 @@ CMD ["pnpm", "dev"]
 
 # Production stage
 FROM node:22-bookworm-slim
+LABEL ai.cipher.dbdesk.workspace-contract="1"
 WORKDIR /app
 
 RUN apt-get -o Acquire::Check-Valid-Until=false update \

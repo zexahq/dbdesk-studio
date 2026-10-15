@@ -22,6 +22,7 @@ import * as React from 'react'
 import { useEffect, useState } from 'react'
 import { Button } from './ui/button'
 import { getRuntimeConfig } from '@common/config'
+import { toast } from '@/lib/toast'
 import { clearLastConnectionId } from '@/lib/last-connection'
 
 export function QuickPanel() {
@@ -92,7 +93,12 @@ export function QuickPanel() {
   const handleDisconnect = async () => {
     if (!currentConnectionId) return
 
-    await disconnect(currentConnectionId)
+    try {
+      await disconnect(currentConnectionId)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not disconnect')
+      return
+    }
     setCurrentConnection(null)
     // Explicit disconnect: don't auto-restore this connection on reload.
     if (getRuntimeConfig().embedding.connection.clearRememberedOnDisconnect) clearLastConnectionId()

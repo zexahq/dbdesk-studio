@@ -1,3 +1,6 @@
+import type { QueryResult } from '@common/types'
+import { useSqlWorkspaceStore } from '@/store/sql-workspace-store'
+import { useTabStore } from '@/store/tab-store'
 import {
   getRuntimeConfig,
   interpolateConnectionPath,
@@ -241,4 +244,64 @@ export function setupEmbeddedConnectListener(): void {
 
   // Tell the parent we're ready to receive messages
   postToParent({ type: config.embedding.messages.ready })
+}
+
+interface NativeQueryPresentation {
+  id: string
+  phase: 'prepare' | 'result'
+  connectionId: string
+  sql?: string
+  mode?: 'read' | 'write'
+  result?: QueryResult
+  error?: string
+}
+
+/** Presentation only: the native owner broker executes approved SQL separately.
+ * Never execute or replay SQL through this bridge, including on reload.
+ */
+export function setupNativeWorkspaceBridge(navigate: (id: string) => Promise<unknown>): void {
+  const hostWindow = window as Window & { __DBDESK_WORKSPACE__?: {
+    version: number
+    present: (payload: NativeQueryPresentation) => Promise<boolean>
+  } }
+  hostWindow.__DBDESK_WORKSPACE__ = {
+    version: 1,
+    async present(payload) {
+      if (!payload || typeof payload.id !== 'string' || payload.id.length > 128 ||
+          typeof payload.connectionId !== 'string' || !/^[a-f0-9-]{36}$/i.test(payload.connectionId) ||
+          (payload.sql !== undefined && (typeof payload.sql !== 'string' || payload.sql.length > 8192))) return false
+      const workspace = useSqlWorkspaceStore.getState()
+      if (payload.phase === 'prepare') {
+        workspace.setDisconnecting(null)
+        await navigate(payload.connectionId)
+      } else if (payload.phase !== 'result' || workspace.currentConnectionId !== payload.connectionId ||
+                 workspace.disconnectingId === payload.connectionId ||
+                 !useTabStore.getState().findQueryTabById(`host-${payload.id}`)) return false
+      // Saved-tab restoration must finish before a new result is presented.
+      // An explicit disconnect invalidates delivery instead of reconnecting.
+      const deadline = Date.now() + 15000
+      while (useSqlWorkspaceStore.getState().workspaceReadyId !== payload.connectionId) {
+        if (Date.now() >= deadline || useSqlWorkspaceStore.getState().disconnectingId === payload.connectionId) return false
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+      if (!payload.sql) return true
+      const tabs = useTabStore.getState()
+      const id = `host-${payload.id}`
+      if (!tabs.findQueryTabById(id)) {
+        const created = tabs.addQueryTab()
+        tabs.updateQueryTab(created, { id, name: `Chat · ${payload.mode === 'write' ? 'Change' : 'Read only'}`,
+          editorContent: payload.sql, lastSavedContent: payload.sql })
+      }
+      tabs.updateQueryTab(id, {
+        hostActionId: payload.id, hostRunning: payload.phase === 'prepare',
+        queryResults: payload.result,
+        batchResults: payload.error ? [{ query: payload.sql, error: payload.error, executionTime: 0 }] : undefined,
+        lastExecutedQuery: payload.sql,
+        limit: 100, offset: 0,
+        totalRowCount: payload.result?.totalRowCount
+      })
+      tabs.setActiveTab(id)
+      return true
+    }
+  }
 }

@@ -147,6 +147,21 @@ dbdesk-studio/
 
 ## Features in Detail
 
+### Host SQL integration
+
+The API uses the shared connection manager for saved profiles and SQL routes.
+Query/schema/table routes live in `apps/server/src/routes/sql.ts`; PostgreSQL
+execution and cancellation live in `apps/server/src/lib/postgres/execution.ts`.
+Hosts can connect a saved profile and POST a single query with
+`options: { readOnly: true, queryId: "unique-id", limit: 100, offset: 0 }`.
+Read-only execution uses a dedicated READ ONLY transaction, cancellation targets
+that query ID, and statements have a 20-second server timeout. The public adapter
+methods remain the SQLAdapter contract and forward to the query execution owner.
+A host must independently approve the target and SQL, reject transaction control
+that could escape read-only execution, and never repeat a write after an uncertain
+outcome. Rebuild the container after changing server sources; old bundles with an
+unresolved `ConnectionManager` reference cannot execute queries.
+
 ### Connections
 - Save and manage multiple database connections
 - Support for PostgreSQL and MySQL
@@ -193,3 +208,26 @@ pnpm build
 ## License
 
 MIT
+
+### Native database workspace integration
+
+Native hosts may call `window.__DBDESK_WORKSPACE__.present(payload)` after boot
+(`version === 1`). The payload contains `id`, `phase` (`prepare` or `result`),
+`connectionId`, optional `sql`, `mode`, and the standard `result` or `error`.
+This bridge only displays approved SQL/results in the existing query editor;
+it never executes or replays SQL. Prepare selects a saved connection workspace;
+result delivery updates that action's tab and refuses a disconnected workspace.
+In-flight query cancellation uses the original action ID. The offline bridge
+regression runs with `pnpm --filter server exec tsx --tsconfig ../web/tsconfig.json --test ../../test/host-workspace.ts`. Reload restores drafts,
+never a running host action or executable request. The sidebar is visible only
+inside an active connected workspace. Disconnect clears remembered connection,
+tabs, metadata caches and live selection; the route cannot auto-reconnect it.
+
+The production image carries `ai.cipher.dbdesk.workspace-contract=1`; both
+`/health` and `/api/health` report `workspaceContract: 1`. Cipher mounts its
+provider-neutral registry at `/usr/share/nginx/html/runtime.yaml`. Tagged Docker
+releases publish **linux/amd64 and linux/arm64** to
+`anuraggoswami/dbdesk-studio` (the repository Cipher pulls). Source changes alone
+do not update an image already downloaded by another laptop. Publish the updated
+release, then use **Pull latest** in Cipher. A missing engine, unavailable image,
+or incompatible release is reported explicitly rather than showing an empty Studio.

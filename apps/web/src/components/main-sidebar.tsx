@@ -1,4 +1,4 @@
-import { Link } from '@tanstack/react-router'
+import { Link, useMatchRoute } from '@tanstack/react-router'
 import { DatabaseIcon, FileText, Home, LayoutDashboard, Workflow } from 'lucide-react'
 import { QuickPanel } from './quick-panel'
 import { ThemeToggle } from './theme-toggle'
@@ -14,7 +14,8 @@ export function MainSidebar() {
   const sidebarViewMode = useSqlWorkspaceStore((s) => s.sidebarViewMode)
   const setSidebarViewMode = useSqlWorkspaceStore((s) => s.setSidebarViewMode)
   const addSchemaDiagramTab = useTabStore((s) => s.addSchemaDiagramTab)
-  if (getRuntimeConfig().embedding.ui.hideSidebar) return null
+  const matchRoute = useMatchRoute()
+  if (!currentConnectionId || !matchRoute({ to: '/connections/$connectionId', params: { connectionId: currentConnectionId } }) || getRuntimeConfig().embedding.ui.hideSidebar) return null
   // Deliberately leaving a workspace for the connections list: forget the
   // remembered connection so a later reload keeps the user on the list
   // instead of auto-restoring the editor.
