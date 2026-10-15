@@ -25,7 +25,8 @@ import { deleteProfile, getProfile, loadProfiles, saveProfile } from './storage'
 import { getProjectId } from './project-scope'
 import { registerSQLRoutes } from './routes/sql'
 import { ValidationError } from './utils/errors'
-import { getRouteParam, validateConnectionUri } from './utils/validation'
+import { getRouteParam } from './utils/validation'
+import { registerConnectionURIRoute } from './routes/connections'
 import { deleteWorkspace, loadWorkspace, saveWorkspace } from './workspace-storage'
 
 function generateUUID(): string {
@@ -91,16 +92,13 @@ app.get('/api/adapters', (_req: Request, res: Response) => {
 // Connections API
 // ============================================================================
 
+registerConnectionURIRoute(app)
+
 // Enforce the same project boundary for every connection-scoped endpoint,
 // including queries and schema operations. Listing alone is not sufficient:
 // a host must not be able to reuse an id belonging to another project.
 app.use('/api/connections/:connectionId', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // `/from-uri` is a sibling collection route, not a connection id.
-    if (req.path === '/from-uri') {
-      next()
-      return
-    }
     const projectId = getProjectId(req)
     const profile = await getProfile(String(req.params.connectionId), projectId)
     if (!profile) {
@@ -149,83 +147,6 @@ app.post('/api/connections', async (req: Request, res: Response, next: NextFunct
     } as ConnectionProfile
 
     await saveProfile(profile, projectId)
-    res.status(201).json(profile)
-  } catch (err) {
-    next(err)
-  }
-})
-
-// Create connection from URI (connection string)
-app.post('/api/connections/from-uri', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const projectId = getProjectId(req)
-    const { uri } = req.body as { uri: string }
-
-    // Validate and parse the connection URI
-    const { type, options, name } = validateConnectionUri(uri)
-
-    // Check if adapter is available
-    if (!adapterRegistry.getFactory(type)) {
-      res.status(400).json({ error: `Adapter "${type}" is not available` })
-      return
-    }
-
-    // Check for an existing profile with matching connection details
-    const existingProfiles = await loadProfiles(projectId)
-    const existingProfile = existingProfiles.find((p) => {
-      if (p.type !== type) return false
-      const opts = p.options as typeof options
-      return (
-        opts.host === options.host &&
-        opts.port === options.port &&
-        opts.database === options.database &&
-        opts.user === options.user
-      )
-    })
-
-    if (existingProfile) {
-      // Update password if it changed, and refresh updatedAt
-      const existingOpts = existingProfile.options as typeof options
-      if (existingOpts.password !== options.password) {
-        existingOpts.password = options.password
-        existingProfile.updatedAt = new Date()
-        await saveProfile(existingProfile, projectId)
-      }
-
-      // Re-establish the connection
-      try {
-        await connectProfile(existingProfile, projectId)
-      } catch {
-        // Connection failed, but profile is valid — still return it
-      }
-
-      res.status(200).json(existingProfile)
-      return
-    }
-
-    const now = new Date()
-    const profile = {
-      id: generateUUID(),
-      name,
-      type,
-      options,
-      createdAt: now,
-      updatedAt: now,
-      projectId
-    } as ConnectionProfile
-
-    // Save the profile
-    await saveProfile(profile, projectId)
-
-    // Immediately establish the connection
-    try {
-      await connectProfile(profile, projectId)
-    } catch (connectionError) {
-      // Roll back the saved profile if connection creation fails
-      await deleteProfile(profile.id, projectId)
-      throw connectionError
-    }
-
     res.status(201).json(profile)
   } catch (err) {
     next(err)
@@ -616,7 +537,7 @@ app.post(
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   console.error('API Error:', err)
   const message = err instanceof Error ? err.message : 'Internal server error'
-  res.status(500).json({ error: message })
+  res.status(err instanceof ValidationError ? 400 : 500).json({ error: message })
 })
 
 app.listen(PORT, () => {

@@ -1,6 +1,6 @@
 import type { ConnectionProfile } from '@common/types'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog'
-import { PostgresConnectionForm } from './connection-forms/postgres/postgres-connection-form'
+import { PostgresConnectionEntry } from './connection-forms/postgres/postgres-connection-entry'
 
 interface ConnectionDialogProps {
   open: boolean
@@ -24,7 +24,7 @@ export function ConnectionDialog({
               : 'Create a new database connection profile.'}
           </DialogDescription>
         </DialogHeader>
-        <PostgresConnectionForm connection={connection} onSuccess={() => onOpenChange(false)} />
+        <PostgresConnectionEntry connection={connection} onSuccess={() => onOpenChange(false)} />
       </DialogContent>
     </Dialog>
   )

@@ -1,92 +1,54 @@
-import type { PostgreSQLSslMode } from '@common/types/sql'
+import type { ConnectionProfile } from '@common/types'
+import { dbdeskClient } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Zap } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
+import { getRuntimeConfig } from '@common/config'
+import { setLastConnectionId } from '@/lib/last-connection'
+import { useSqlWorkspaceStore } from '@/store/sql-workspace-store'
 import { useState } from 'react'
 
-interface PostgresQuickConnectProps {
-  onSuccess: (values: {
-    name: string
-    host: string
-    port: number
-    database: string
-    user: string
-    password: string
-    sslMode: PostgreSQLSslMode
-  }) => void
-}
-
-export function PostgresQuickConnect({ onSuccess }: PostgresQuickConnectProps) {
+export function PostgresQuickConnect({ onConnected }: { onConnected: (profile: ConnectionProfile) => void }) {
   const [dsn, setDsn] = useState('')
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const client = useQueryClient()
+  const navigate = useNavigate()
 
-  const handleQuickConnect = () => {
-    const value = dsn.trim()
-    if (!value) return
-
+  const connect = async () => {
+    if (!dsn.trim() || pending) return
+    setPending(true)
+    setError(null)
     try {
-      const url = new URL(value)
-      const rawProtocol = url.protocol.replace(':', '')
-      // Normalize adapter type for backend
-      const isPostgres = rawProtocol === 'postgres' || rawProtocol === 'postgresql'
-
-      if (!isPostgres) {
-        alert('Only postgres:// and postgresql:// are supported for quick connect.')
-        return
-      }
-
-      const defaultPort = 5432
-      const database = url.pathname.replace('/', '')
-
-      if (!database) {
-        throw new Error('Missing database name')
-      }
-
-      const name = database
-
-      // Parse SSL mode from query parameters
-      const sslModeParam = url.searchParams.get('sslmode') || url.searchParams.get('ssl-mode')
-      const validSslModes: PostgreSQLSslMode[] = ['disable', 'allow', 'prefer', 'require']
-      const sslMode: PostgreSQLSslMode = validSslModes.includes(sslModeParam as PostgreSQLSslMode)
-        ? (sslModeParam as PostgreSQLSslMode)
-        : 'disable'
-
-      onSuccess({
-        name,
-        host: url.hostname,
-        port: Number(url.port || defaultPort),
-        database,
-        user: decodeURIComponent(url.username),
-        password: decodeURIComponent(url.password),
-        sslMode
-      })
+      const profile = await dbdeskClient.createConnectionFromUri(dsn.trim())
+      const workspace = useSqlWorkspaceStore.getState()
+      workspace.setDisconnecting(null)
+      workspace.setCurrentConnection(profile.id)
+      if (getRuntimeConfig().embedding.connection.restoreLastConnection) setLastConnectionId(profile.id)
+      void client.invalidateQueries({ queryKey: ['connections'] })
       setDsn('')
-    } catch {
-      alert('Invalid DSN. Example:\n- postgresql://user:pass@host:5432/dbname')
-    }
+      onConnected(profile)
+      await navigate({ to: '/connections/$connectionId', params: { connectionId: profile.id } })
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'Could not connect to PostgreSQL.')
+    } finally { setPending(false) }
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-4 sm:gap-3">
-      <div className="flex-1">
-        <label htmlFor="postgres-quick-connect" className="text-sm font-medium">
-          Quick Connect (DSN)
-        </label>
-        <p className="text-xs text-muted-foreground">
-          Paste a PostgreSQL connection string to quickly fill the form below.
+    <form onSubmit={(event) => { event.preventDefault(); void connect() }} className="flex flex-col gap-4">
+      <div className="space-y-2">
+        <label htmlFor="postgres-quick-connect" className="text-sm font-medium">Connection string</label>
+        <Input id="postgres-quick-connect" type="password" autoComplete="off" spellCheck={false}
+          placeholder="postgresql://user:password@localhost:5435/testDb"
+          value={dsn} disabled={pending} aria-invalid={Boolean(error)} aria-describedby="postgres-uri-help postgres-uri-error"
+          onChange={(event) => { setDsn(event.target.value); setError(null) }} />
+        <p id="postgres-uri-help" className="text-xs text-muted-foreground">
+          Paste a PostgreSQL URI and connect directly. No separate form fields are required.
         </p>
       </div>
-      <div className="flex flex-col gap-2 sm:flex-1 sm:flex-row sm:items-center">
-        <Input
-          id="postgres-quick-connect"
-          placeholder="postgresql://user:pass@host:5432/dbname"
-          value={dsn}
-          onChange={(event) => setDsn(event.target.value)}
-        />
-        <Button variant="default" onClick={handleQuickConnect} className="sm:w-auto">
-          <Zap className="size-4" />
-          Connect
-        </Button>
-      </div>
-    </div>
+      {error && <p id="postgres-uri-error" role="alert" className="text-sm text-destructive break-words">{error}</p>}
+      <Button type="submit" disabled={pending || !dsn.trim()}>{pending ? 'Connecting…' : 'Connect'}</Button>
+    </form>
   )
 }

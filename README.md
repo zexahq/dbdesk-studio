@@ -231,3 +231,35 @@ releases publish **linux/amd64 and linux/arm64** to
 do not update an image already downloaded by another laptop. Publish the updated
 release, then use **Pull latest** in Cipher. A missing engine, unavailable image,
 or incompatible release is reported explicitly rather than showing an empty Studio.
+
+### Connect with a PostgreSQL URI
+
+New Connection starts with **Connection string**. Paste a `postgres://` or
+`postgresql://` URI and choose **Connect**; Studio saves the profile and opens its
+workspace only after the database accepts the connection. Host, user, password,
+database, port and a separate name are not required as form fields. **Manual
+details** remains available. Connection failures show the server's actionable
+error and never masquerade as a successful reconnection. Retrying an existing
+profile refreshes its password, TLS settings and pool. URI credentials are
+sensitive profile data; do not paste them in chat, logs or bug reports.
+
+Encoded names/passwords/database names, IPv6, query-parameter overrides and SSL
+modes are preserved. TLS `require` and verification modes never downgrade.
+`prefer` may retry without TLS only when PostgreSQL explicitly rejects TLS;
+`allow` may retry with TLS when PostgreSQL explicitly requires encryption.
+Browser-supplied certificate/key file paths, Unix sockets and multi-host URIs are
+rejected explicitly. The `?uri=` launch route uses the same connection path.
+
+The official container sets `DBDESK_HOST_GATEWAY=host.docker.internal`, so
+`localhost`, `127.0.0.1` and `::1` refer to a database on the host computer at the
+specified published port (for example `5435`). Remote hosts are unchanged and
+saved profiles retain the entered address. Standalone server processes leave
+loopback unchanged. For Docker on Linux, add
+`--add-host=host.docker.internal:host-gateway`; a custom deployment may override
+or unset `DBDESK_HOST_GATEWAY`. SSH tunnels must be reachable from the container;
+Studio cannot inherit a host process's Unix socket or credential environment.
+
+Run the offline URI/connection regressions with
+`pnpm --filter server exec tsx --tsconfig tsconfig.json --test ../../test/postgres-connection.ts`.
+The URI-only dialog render regression runs with
+`pnpm --filter server exec tsx --tsconfig ../web/tsconfig.json --test ../../test/postgres-entry.tsx`.

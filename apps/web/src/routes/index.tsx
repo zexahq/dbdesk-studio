@@ -14,21 +14,6 @@ interface SearchParams {
 }
 
 /**
- * Parse a postgresql:// URI into its components.
- * Handles percent-encoded userinfo and optional database / query params.
- */
-function parsePostgresUri(uri: string) {
-  const url = new URL(uri)
-  return {
-    host: decodeURIComponent(url.hostname) || 'localhost',
-    port: parseInt(url.port, 10) || 5432,
-    user: decodeURIComponent(url.username) || 'postgres',
-    password: decodeURIComponent(url.password) || '',
-    database: decodeURIComponent(url.pathname.replace(/^\//, '')) || 'postgres',
-  }
-}
-
-/**
  * Guards the auto-restore to a single attempt per full page load. Without this
  * an in-app navigation back to the connections list would immediately bounce
  * the user into the editor again; we only want to restore on a fresh load
@@ -66,23 +51,9 @@ function ConnectionPage() {
     setIsConnecting(true)
     setError(null)
 
-    // Parse the URI and save as a connection profile WITHOUT testing
-    // connectivity. This avoids a 500 error when the DB is not reachable
-    // from the dbdesk-studio server (e.g. different network topology).
-    // The connection page handles the actual session establishment.
-    const parsed = parsePostgresUri(uri)
+    // Use the same server-side URI parser and successful-connect contract.
     dbdeskClient
-      .createConnection(
-        `${parsed.user}@${parsed.host}`,
-        'postgres',
-        {
-          host: parsed.host,
-          port: parsed.port,
-          database: parsed.database,
-          user: parsed.user,
-          password: parsed.password,
-        },
-      )
+      .createConnectionFromUri(uri)
       .then((profile) => {
         // Navigate to the connection page (clears URI from address bar)
         navigate({

@@ -16,7 +16,8 @@ import type {
   UpdateTableCellOptions,
   UpdateTableCellResult
 } from '@common/types'
-import type { PostgreSQLSslMode } from '@common/types/sql'
+import { postgresPoolConfig, postgresConnectionError, sslFallback } from '../lib/postgres/connection'
+import type { PoolConfig } from 'pg'
 import { performance } from 'node:perf_hooks'
 import { Pool } from 'pg'
 
@@ -37,30 +38,6 @@ import {
 import { parsePostgresArray, quoteIdentifier } from '../lib/postgres/utils'
 import { PostgresQueryExecution } from '../lib/postgres/execution'
 
-const DEFAULT_TIMEOUT_MS = 30_000
-
-/**
- * Convert PostgreSQL SSL mode to pg client SSL configuration
- */
-function getSslConfig(sslMode?: PostgreSQLSslMode): boolean | object {
-  switch (sslMode) {
-    case 'disable':
-      return false
-    case 'allow':
-      return false
-    case 'prefer':
-      return { rejectUnauthorized: false }
-    case 'require':
-      return { rejectUnauthorized: false }
-    case 'verify-ca':
-      return true
-    case 'verify-full':
-      return true
-    default:
-      return false
-  }
-}
-
 export class PostgresAdapter implements SQLAdapter {
   private pool: Pool | null = null
   private queryExecution: PostgresQueryExecution | null = null
@@ -72,18 +49,19 @@ export class PostgresAdapter implements SQLAdapter {
       return
     }
 
-    const pool = new Pool({
-      host: this.options.host,
-      port: this.options.port,
-      database: this.options.database,
-      user: this.options.user,
-      password: this.options.password,
-      ssl: getSslConfig(this.options.sslMode),
-      max: 10,
-      idleTimeoutMillis: DEFAULT_TIMEOUT_MS,
-      connectionTimeoutMillis: DEFAULT_TIMEOUT_MS,
-      statement_timeout: 20_000
-    })
+    try {
+      const config = postgresPoolConfig(this.options)
+      try { await this.openPool(config) }
+      catch (error) {
+        const fallback = sslFallback(this.options.sslMode, error)
+        if (fallback === undefined) throw error
+        await this.openPool({ ...config, ssl: fallback })
+      }
+    } catch (error) { throw postgresConnectionError(error, this.options) }
+  }
+
+  private async openPool(config: PoolConfig): Promise<void> {
+    const pool = new Pool(config)
 
     // node-postgres emits 'error' on the pool when an *idle* client hits a
     // backend/network error (server restart, HA failover, dropped TCP conn).

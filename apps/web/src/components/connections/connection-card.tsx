@@ -75,8 +75,8 @@ export function ConnectionCard({ profile, onEdit }: ConnectionCardProps) {
           params: { connectionId: profile.id }
         })
       },
-      onError: () => {
-        toast.error(`Failed to connect to "${profile.name}"`)
+      onError: (error) => {
+        toast.error(error instanceof Error ? error.message : `Failed to connect to "${profile.name}"`)
       }
     })
   }

@@ -77,6 +77,7 @@ server {
 }
 EOF
 
+ENV DBDESK_HOST_GATEWAY=host.docker.internal
 ENV PORT=6789
 ENV CORS_ORIGIN=*
 ENV NODE_ENV=production

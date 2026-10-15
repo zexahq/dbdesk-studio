@@ -18,9 +18,8 @@ import { Eye, EyeOff } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import * as z from 'zod'
-import { PostgresQuickConnect } from './postgres-quick-connect'
 
-const SSL_MODE_OPTIONS: PostgreSQLSslMode[] = ['disable', 'allow', 'prefer', 'require']
+const SSL_MODE_OPTIONS: PostgreSQLSslMode[] = ['disable', 'allow', 'prefer', 'require', 'verify-ca', 'verify-full']
 
 const formSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -131,24 +130,6 @@ export function PostgresConnectionForm({ connection, onSuccess }: PostgresConnec
     }
   })
 
-  const handleQuickConnect = (values: {
-    name: string
-    host: string
-    port: number
-    database: string
-    user: string
-    password?: string
-    sslMode?: string
-  }) => {
-    form.setFieldValue('name', values.name)
-    form.setFieldValue('host', values.host)
-    form.setFieldValue('port', values.port)
-    form.setFieldValue('database', values.database)
-    form.setFieldValue('user', values.user)
-    form.setFieldValue('password', values.password || '')
-    form.setFieldValue('sslMode', (values.sslMode as PostgreSQLSslMode) || 'disable')
-  }
-
   return (
     <form
       onSubmit={(e) => {
@@ -158,13 +139,6 @@ export function PostgresConnectionForm({ connection, onSuccess }: PostgresConnec
       className="flex flex-col gap-5"
       id="postgres-connection-form"
     >
-      {!connection && (
-        <>
-          <PostgresQuickConnect onSuccess={handleQuickConnect} />
-          <Separator />
-        </>
-      )}
-
       <FieldGroup>
         <form.Field name="name">
           {(field) => {
