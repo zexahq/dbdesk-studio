@@ -35,7 +35,7 @@ function skipQuoted(text: string, start: number, quote: string): number {
 export const hasAdditionalStatements = (query: string): boolean => {
   const clean = stripSqlComments(query)
   for (let i = 0; i < clean.length; i += 1) {
-    if (clean[i] === "'" || clean[i] === '"') i = skipQuoted(clean, i, clean[i]) - 1
+    if (clean[i] === "'" || clean[i] === '"') i = skipQuoted(clean, i, clean[i]!) - 1
     else if (clean[i] === ';' && clean.slice(i + 1).trim()) return true
   }
   return false
@@ -46,7 +46,7 @@ function skipParenthesized(text: string, start: number): number {
   let index = start + 1
   let depth = 1
   while (index < text.length && depth > 0) {
-    if (text[index] === "'" || text[index] === '"') index = skipQuoted(text, index, text[index])
+    if (text[index] === "'" || text[index] === '"') index = skipQuoted(text, index, text[index]!)
     else if (text[index] === '(') { depth += 1; index += 1 }
     else if (text[index] === ')') { depth -= 1; index += 1 }
     else index += 1

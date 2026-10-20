@@ -1,7 +1,7 @@
 import type { QueryBatchResult, QueryResult, RunQueryOptions } from '@common/types'
 import { performance } from 'node:perf_hooks'
 import { Pool, type PoolClient, type QueryResult as PgQueryResult, type QueryResultRow } from 'pg'
-import { isSelectableQuery, normalizeQuery } from '../sql-parser'
+import { getInitialStatementKeyword, isSelectableQuery, normalizeQuery } from '../sql-parser'
 
 export class PostgresQueryExecution {
   private readonly activeQueries = new Map<string, number>()
@@ -92,6 +92,15 @@ export class PostgresQueryExecution {
     runner: Pool | PoolClient,
     start: number
   ): Promise<QueryResult> {
+
+    // Assistant execution must issue SQL once: a count query can repeat volatile
+    // functions, and a modifying CTE must never be evaluated for pagination.
+    if (options?.includeTotalRowCount === false) {
+      const pageable = options.readOnly && ['select', 'with', 'values'].includes(getInitialStatementKeyword(normalizedQuery) || '')
+      const sql = pageable ? `SELECT * FROM (${normalizedQuery}) AS assistant_query LIMIT ${options.limit ?? 100} OFFSET ${options.offset ?? 0}` : normalizedQuery
+      const result = await runner.query(sql)
+      return this.transformResult(result, performance.now() - start)
+    }
 
     // Check if this is a SELECT query that can be paginated
     if (options && isSelectableQuery(normalizedQuery)) {

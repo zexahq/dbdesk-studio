@@ -147,20 +147,92 @@ dbdesk-studio/
 
 ## Features in Detail
 
-### Host SQL integration
+### Assistant API v1
 
-The API uses the shared connection manager for saved profiles and SQL routes.
-Query/schema/table routes live in `apps/server/src/routes/sql.ts`; PostgreSQL
-execution and cancellation live in `apps/server/src/lib/postgres/execution.ts`.
-Hosts can connect a saved profile and POST a single query with
-`options: { readOnly: true, queryId: "unique-id", limit: 100, offset: 0 }`.
-Read-only execution uses a dedicated READ ONLY transaction, cancellation targets
-that query ID, and statements have a 20-second server timeout. The public adapter
-methods remain the SQLAdapter contract and forward to the query execution owner.
-A host must independently approve the target and SQL, reject transaction control
-that could escape read-only execution, and never repeat a write after an uncertain
-outcome. Rebuild the container after changing server sources; old bundles with an
-unresolved `ConnectionManager` reference cannot execute queries.
+DBDesk owns an assistant-neutral HTTP API at `/api/assistant/v1`. Any assistant,
+embedding host or SDK can use it without a Cipher account, model provider,
+container engine or native host-action protocol. Existing browser APIs remain
+unchanged. The API is disabled until a bearer token of at least 32 characters is
+configured with `DBDESK_ASSISTANT_TOKEN`, `DBDESK_ASSISTANT_TOKEN_FILE`, or the
+`assistant-token` file in `STORAGE_PATH` (default `~/.config/dbdesk-studio`). Keep
+the file private (mode 0600). Send `Authorization: Bearer <token>` on every call.
+Keep tokens in the host's credential boundary; never give them to the model or
+place them in URLs, page scripts, runtime.yaml or logs. Use loopback binding for
+local deployments and HTTPS plus authenticated host access for remote deployment.
+The legacy browser API has its existing trust model; this token protects the new
+assistant surface only and does not secure the whole Studio deployment.
+
+Writes are disabled by default. An operator may set
+`DBDESK_ASSISTANT_ALLOW_WRITES=true` for a trusted host that obtains user approval
+for the exact target and SQL. The bearer token grants host authority; the API
+cannot prove that an embedding host actually obtained approval. Set
+`DBDESK_ASSISTANT_PROJECT_ID` to pin a deployment's token to one project and send
+that same `X-DBDesk-Project-ID` header. Without a pin, the token is administrative:
+it may select project scope through that header, or list all profiles without it.
+A project header alone is not tenant authentication. Use separate deployments or
+an authenticated gateway for independent untrusted tenants.
+
+All paths below are relative to `/api/assistant/v1` (prepend the deployment's
+base path when mounted below a prefix):
+
+| Method | Path | Contract |
+| --- | --- | --- |
+| GET | `/capabilities` | Version, limits, write policy, routes and executable query JSON Schema. |
+| GET | `/connections` | Saved `{id,name,type,revision,connected}` profiles, without connection options or credentials. |
+| GET | `/status` | Live connection state and query IDs/states, without SQL or result rows. |
+| POST | `/connections/{id}/connect` | Empty object; `If-Match` must equal the selected profile revision. |
+| POST | `/connections/{id}/disconnect` | Same revision guard; refuses running assistant operations. |
+| GET | `/connections/{id}/schema` | `If-Match` revision guard; connect first. |
+| POST | `/queries` | Execute the body below once for that query ID; connect first. |
+| GET | `/queries/{queryId}` | Inspect state without executing SQL. |
+| POST | `/queries/{queryId}/cancel` | Empty object; returns `cancelled`, `state` and `rollbackConfirmed:false`. |
+
+```json
+{
+  "queryId": "06186486-f8ad-4c63-a513-2f998c372583",
+  "connectionId": "<saved UUID>",
+  "revision": "<revision from connections>",
+  "sql": "SELECT current_database()",
+  "mode": "read",
+  "limit": 100,
+  "offset": 0
+}
+```
+
+`mode` defaults to `read`, `limit` to 100 (maximum 100), and `offset` to 0
+(maximum 1,000,000). Unknown fields are rejected. Queries currently require
+PostgreSQL: read mode uses a database-enforced READ ONLY transaction, one statement
+and a 20-second statement timeout. Transaction/session control, COPY, procedural
+commands, backslash escapes and dollar quoting are deliberately unsupported.
+Assistant execution issues SQL once, with no count query. Query results use the
+normal `{columns,rows,rowCount,executionTime}` shape and do not include a total
+count. Read SELECT pages are bounded in SQL; other results are truncated to the
+requested row limit. Bodies are capped at 32 KiB, SQL at 8192 characters and
+schema/results at 480 KiB. Narrow large projections before querying.
+
+Supply a fresh UUID for each new query intent. Identical retries with that UUID
+join the same running operation or return its cached outcome; changed arguments
+return 409. IDs and outcomes are retained for the process lifetime, with a hard
+256-ID bound (429 when full). Restarting loses this transient ledger: always
+inspect an uncertain write before retrying, especially after a restart. A dropped
+HTTP response does not cancel or repeat SQL. Poll the query state and request
+cancellation separately. Cancellation never proves rollback. Revisions bind the
+saved profile, including credentials; refresh and obtain approval again after a
+412 response. Errors use `{error:{code,message}}`, omit credentials/raw SQL, and
+responses set `Cache-Control: no-store`.
+
+Implementation lives in `apps/server/src/assistant`; PostgreSQL enforcement lives
+in `apps/server/src/lib/postgres/execution.ts`. Offline regression:
+`pnpm --filter server exec tsx --test ../../test/assistant-api.ts`.
+Rebuild the deployment after server changes. The image advertises
+`org.dbdesk.assistant-api=1`; no specific container runtime is required.
+
+Embedding hosts can pass completed results to the existing version-1
+`window.__DBDESK_WORKSPACE__.present` bridge described below. It selects the saved
+connection and displays SQL/results in the existing editor; it never executes SQL.
+The host should open/reveal its DBDesk workspace when a database task begins,
+obtain approval before connecting or executing, and never rerun a completed query
+because presentation failed.
 
 ### Connections
 - Save and manage multiple database connections

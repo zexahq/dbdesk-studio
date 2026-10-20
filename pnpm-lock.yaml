@@ -82,6 +82,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 22.19.7
+      '@types/pg':
+        specifier: ^8.16.0
+        version: 8.16.0
       tsdown:
         specifier: ^0.16.5
         version: 0.16.8(typescript@5.9.3)

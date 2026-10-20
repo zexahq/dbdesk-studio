@@ -1,4 +1,4 @@
-import type { ColumnDefinition, DeleteTableRowsOptions, RunQueryOptions, UpdateTableCellOptions } from '@common/types'
+import type { ColumnDefinition, DeleteTableRowsOptions, QueryResultRow, RunQueryOptions, TableDataOptions, UpdateTableCellOptions } from '@common/types'
 import type { Application, NextFunction, Request, Response } from 'express'
 import { connectionManager } from '../connectionManager'
 import { translatePsqlMetaCommand } from '../lib/psql-meta'

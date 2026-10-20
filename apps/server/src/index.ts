@@ -4,8 +4,6 @@ import type {
   DatabaseType,
   DBConnectionOptions,
   ExportTableOptions,
-  QueryResultRow,
-  TableDataOptions,
   TableFilterCondition,
   TableSortRule,
 } from '@common/types'
@@ -24,6 +22,7 @@ import { deleteQuery, loadQueries, saveQuery, updateQuery } from './saved-querie
 import { deleteProfile, getProfile, loadProfiles, saveProfile } from './storage'
 import { getProjectId } from './project-scope'
 import { registerSQLRoutes } from './routes/sql'
+import { registerAssistantRoutes } from './assistant/routes'
 import { ValidationError } from './utils/errors'
 import { getRouteParam } from './utils/validation'
 import { registerConnectionURIRoute } from './routes/connections'
@@ -31,8 +30,8 @@ import { deleteWorkspace, loadWorkspace, saveWorkspace } from './workspace-stora
 
 function generateUUID(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16))
-  bytes[6] = (bytes[6] & 0x0f) | 0x40
-  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80
   const h = [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
 }
@@ -61,6 +60,8 @@ app.use(cors({
   origin: CORS_ORIGIN,
   credentials: true
 }))
+
+registerAssistantRoutes(app)
 
 app.use(express.json())
 

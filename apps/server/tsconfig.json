@@ -1,13 +1,14 @@
 {
   "extends": "@dbdesk-studio/config/tsconfig.base.json",
   "compilerOptions": {
-    "composite": true,
-    "outDir": "dist",
+    "composite": false,
+    "noEmit": true,
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
       "@common/*": ["../../packages/common/*"]
     },
     "jsx": "react-jsx"
-  }
+  },
+  "include": ["src/**/*.ts"]
 }
