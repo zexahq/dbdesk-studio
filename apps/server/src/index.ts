@@ -8,6 +8,8 @@ import type {
   TableSortRule,
 } from '@common/types'
 import cors from 'cors'
+import { fileURLToPath } from 'node:url'
+import { resolve } from 'node:path'
 import express, { type Application, type NextFunction, type Request, type Response } from 'express'
 import { adapterRegistry, listRegisteredAdapters } from './adapters'
 import { connectionManager } from './connectionManager'
@@ -27,6 +29,7 @@ import { ValidationError } from './utils/errors'
 import { getRouteParam } from './utils/validation'
 import { registerConnectionURIRoute } from './routes/connections'
 import { deleteWorkspace, loadWorkspace, saveWorkspace } from './workspace-storage'
+import { parseWorkspace } from './workspace-validation'
 
 function generateUUID(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16))
@@ -238,6 +241,7 @@ app.put(
 app.delete('/api/connections/:connectionId', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const connectionId = getRouteParam(req.params, 'connectionId')
+    await connectionManager.closeConnection(connectionId)
     await deleteProfile(connectionId, getProjectId(req))
     res.json({ success: true })
   } catch (err) {
@@ -292,6 +296,10 @@ app.get(
     try {
       const connectionId = getRouteParam(req.params, 'connectionId')
       const workspace = await loadWorkspace(connectionId)
+      if (!workspace) {
+        res.status(204).end()
+        return
+      }
       res.json(workspace)
     } catch (err) {
       next(err)
@@ -303,7 +311,8 @@ app.post(
   '/api/connections/:connectionId/workspace',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const workspace = req.body
+      const connectionId = getRouteParam(req.params, 'connectionId')
+      const workspace = parseWorkspace(req.body, connectionId)
       await saveWorkspace(workspace)
       res.json({ success: true })
     } catch (err) {
@@ -399,7 +408,14 @@ app.delete(
 app.get('/api/dashboards/export', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const connectionId = typeof req.query.connectionId === 'string' ? req.query.connectionId : undefined
-    res.json(await exportDashboards(connectionId))
+    const profiles = await loadProfiles(getProjectId(req))
+    if (connectionId && !profiles.some((profile) => profile.id === connectionId)) {
+      res.status(404).json({ error: 'Connection not found' })
+      return
+    }
+    const exported = await exportDashboards(connectionId)
+    const allowed = new Set(profiles.map((profile) => profile.id))
+    res.json({ ...exported, dashboards: exported.dashboards.filter((dashboard) => allowed.has(dashboard.connectionId)) })
   } catch (err) {
     next(err)
   }
@@ -437,7 +453,6 @@ app.post(
         res.status(400).json({ error: 'Missing required fields: name, content' })
         return
       }
-      console.log('Saving query with id:', connectionId, id, name, content)
       const query = await saveQuery(connectionId, id, name, content)
       res.status(201).json(query)
     } catch (err) {
@@ -541,7 +556,32 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(err instanceof ValidationError ? 400 : 500).json({ error: message })
 })
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`)
-  console.log(`http://localhost:${PORT}`)
-})
+export { app }
+
+export function startServer(port = PORT, host = process.env.HOST || '127.0.0.1') {
+  const server = app.listen(port, host, () => {
+    console.log(`Server is running at http://${host}:${port}`)
+    if (process.connected) process.send?.({ type: 'dbdesk-ready' })
+  })
+  server.on('error', (error: NodeJS.ErrnoException) => {
+    console.error(error.code === 'EADDRINUSE' ? `Port ${port} is already in use. Choose another --backend-port.` : error.message)
+    process.exitCode = 1
+  })
+  let stopping = false
+  const shutdown = async () => {
+    if (stopping) return
+    stopping = true
+    const timeout = setTimeout(() => process.exit(1), 5000)
+    timeout.unref()
+    server.closeAllConnections()
+    await new Promise<void>((done) => server.close(() => done()))
+    await connectionManager.closeAll()
+    clearTimeout(timeout)
+    process.exit(0)
+  }
+  process.once('SIGINT', shutdown)
+  process.once('SIGTERM', shutdown)
+  return server
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) startServer()

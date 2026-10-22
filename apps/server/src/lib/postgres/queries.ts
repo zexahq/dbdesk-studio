@@ -150,7 +150,7 @@ export const QUERIES = {
 /**
  * Build a SELECT query for fetching table data with filters and sorting
  */
-export function buildTableDataQuery(options: TableDataOptions): {
+export function buildTableDataQuery(options: TableDataOptions, paginate = true): {
   query: string
   params: SqlParameter[]
 } {
@@ -180,8 +180,10 @@ export function buildTableDataQuery(options: TableDataOptions): {
   }
 
   // Add LIMIT and OFFSET
-  query += ` LIMIT $${paramCount} OFFSET $${paramCount + 1}`
-  params.push(limit, offset)
+  if (paginate) {
+    query += ` LIMIT $${paramCount} OFFSET $${paramCount + 1}`
+    params.push(limit, offset)
+  }
 
   return { query, params }
 }

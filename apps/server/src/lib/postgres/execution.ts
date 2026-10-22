@@ -1,62 +1,35 @@
 import type { QueryBatchResult, QueryResult, RunQueryOptions } from '@common/types'
 import { performance } from 'node:perf_hooks'
-import { Pool, type PoolClient, type QueryResult as PgQueryResult, type QueryResultRow } from 'pg'
-import { getInitialStatementKeyword, isSelectableQuery, normalizeQuery } from '../sql-parser'
+import { Client, Pool, type PoolClient, type QueryResult as PgQueryResult, type QueryResultRow } from 'pg'
+import { getInitialStatementKeyword, hasAdditionalStatements, isSelectableQuery, normalizeQuery, stripSqlComments } from '../sql-parser'
 
 export class PostgresQueryExecution {
   private readonly activeQueries = new Map<string, number>()
   constructor(private readonly pool: Pool) {}
   public async runQuery(query: string, options?: RunQueryOptions): Promise<QueryResult> {
-    const pool = this.pool
     const start = performance.now()
-
     const normalizedQuery = normalizeQuery(query)
-
-    // Cancellation and read-only plans both need a dedicated client. The
-    // read-only transaction is enforced by PostgreSQL, including for writes
-    // hidden in CTEs that a client-side parser could miss.
-    if (options?.queryId || options?.readOnly) {
-      const client = await pool.connect()
-      try {
-        await client.query('SET statement_timeout = 20000')
-        if (options?.readOnly) {
-          await client.query('START TRANSACTION READ ONLY')
-          await client.query('SET LOCAL statement_timeout = 20000')
-        }
-        if (options?.queryId) {
-          const pidResult = await client.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')
-          const pid = pidResult.rows[0]?.pid
-          if (typeof pid === 'number') {
-            this.activeQueries.set(options.queryId, pid)
-          }
-        }
-        return await this.executeQuery(normalizedQuery, options, client, start)
-      } finally {
-        if (options?.queryId) this.activeQueries.delete(options.queryId)
-        if (options?.readOnly) await client.query('ROLLBACK').catch(() => {})
-        await client.query('RESET statement_timeout').catch(() => {})
-        client.release()
-      }
+    if (options?.readOnly) this.validateReadOnly(normalizedQuery)
+    const client = await this.pool.connect()
+    try {
+      await this.prepareClient(client, options)
+      return await this.executeQuery(normalizedQuery, options, client, start)
+    } finally {
+      await this.releaseClient(client, options?.queryId)
     }
-
-    return this.executeQuery(normalizedQuery, options, pool, start)
   }
 
   public async runManyQueries(
     queries: string[],
     options?: RunQueryOptions
   ): Promise<QueryBatchResult[]> {
-    const pool = this.pool
-    const client = await pool.connect()
+    if (options?.readOnly) queries.forEach((query) => this.validateReadOnly(query))
+    const client = await this.pool.connect()
     const results: QueryBatchResult[] = []
     const queryId = options?.queryId
 
     try {
-      if (queryId) {
-        const pidResult = await client.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')
-        const pid = pidResult.rows[0]?.pid
-        if (typeof pid === 'number') this.activeQueries.set(queryId, pid)
-      }
+      await this.prepareClient(client, options)
       for (const query of queries) {
         const normalizedQuery = normalizeQuery(query).trim()
         if (!normalizedQuery) continue
@@ -79,11 +52,43 @@ export class PostgresQueryExecution {
         }
       }
     } finally {
-      if (queryId) this.activeQueries.delete(queryId)
-      client.release()
+      await this.releaseClient(client, queryId)
     }
 
     return results
+  }
+
+  private validateReadOnly(query: string): void {
+    // Keep transaction/session commands and additional statements from escaping
+    // the read-only transaction. PostgreSQL enforces writes hidden inside CTEs.
+    const keyword = stripSqlComments(query).trim().match(/^[A-Za-z]+/)?.[0]?.toLowerCase()
+    if (!keyword || !['select', 'with', 'values', 'show', 'explain'].includes(keyword) ||
+      query.includes('\\') || query.includes('\0') || /\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/.test(query) || hasAdditionalStatements(query)) {
+      throw new Error('Read-only execution requires one read statement without escape or dollar quoting')
+    }
+  }
+
+  private async prepareClient(client: PoolClient, options?: RunQueryOptions): Promise<void> {
+    await client.query('SET statement_timeout = 20000')
+    if (options?.readOnly) await client.query('START TRANSACTION READ ONLY')
+    if (options?.queryId) {
+      const result = await client.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')
+      const pid = result.rows[0]?.pid
+      if (typeof pid === 'number') this.activeQueries.set(options.queryId, pid)
+    }
+  }
+
+  private async releaseClient(client: PoolClient, queryId?: string): Promise<void> {
+    if (queryId) this.activeQueries.delete(queryId)
+    let discard = false
+    try {
+      // Also handles BEGIN followed by an error or a forgotten COMMIT in a batch.
+      await client.query('ROLLBACK')
+      await client.query('RESET ALL')
+    } catch {
+      discard = true
+    }
+    client.release(discard)
   }
 
   private async executeQuery(
@@ -103,15 +108,15 @@ export class PostgresQueryExecution {
     }
 
     // Check if this is a SELECT query that can be paginated
-    if (options && isSelectableQuery(normalizedQuery)) {
-      // Execute count query and paginated query in parallel
+    if (options && isSelectableQuery(normalizedQuery) && getInitialStatementKeyword(normalizedQuery) !== 'show') {
+      // A dedicated client queues SQL. Do not queue a second statement before
+      // the first succeeds: cancellation must not leave another query running
+      // ahead of the rollback/reset that returns this client to the pool.
       const countQuery = `SELECT COUNT(*) AS total FROM (${normalizedQuery}) AS subquery`
       const paginatedQuery = `SELECT * FROM (${normalizedQuery}) AS subquery LIMIT ${options.limit ?? 50} OFFSET ${options.offset ?? 0}`
 
-      const [countResult, pageResult] = await Promise.all([
-        runner.query<{ total: number }>(countQuery),
-        runner.query<QueryResultRow>(paginatedQuery)
-      ])
+      const pageResult = await runner.query<QueryResultRow>(paginatedQuery)
+      const countResult = await runner.query<{ total: number }>(countQuery)
 
       const executionTime = performance.now() - start
       const totalRow = countResult.rows[0]?.total
@@ -137,9 +142,16 @@ export class PostgresQueryExecution {
     const pid = this.activeQueries.get(queryId)
     if (typeof pid !== 'number') return false
 
-    const pool = this.pool
-    await pool.query('SELECT pg_cancel_backend($1)', [pid])
-    return true
+    // Cancellation must remain available when every pool slot is busy.
+    const control = new Client({ ...this.pool.options, connectionTimeoutMillis: 5000 })
+    try {
+      await control.connect()
+      if (this.activeQueries.get(queryId) !== pid) return false
+      const result = await control.query<{ cancelled: boolean }>('SELECT pg_cancel_backend($1) AS cancelled', [pid])
+      return result.rows[0]?.cancelled === true
+    } finally {
+      await control.end()
+    }
   }
 
   private transformResult(

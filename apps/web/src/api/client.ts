@@ -110,8 +110,8 @@ export const dbdeskClient = {
     return getDbdesk().listSchemasWithTables(connectionId)
   },
 
-  async introspectTable(connectionId: string, schema: string, table: string): Promise<TableInfo> {
-    return getDbdesk().introspectTable(connectionId, schema, table)
+  async introspectTable(connectionId: string, schema: string, table: string, signal?: AbortSignal): Promise<TableInfo> {
+    return getDbdesk().introspectTable(connectionId, schema, table, signal)
   },
 
   async fetchTableData(

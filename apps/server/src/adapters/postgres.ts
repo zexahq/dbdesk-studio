@@ -400,7 +400,7 @@ export class PostgresAdapter implements SQLAdapter {
       offset: undefined
     }
 
-    const { query, params } = buildTableDataQuery(dataOptions)
+    const { query, params } = buildTableDataQuery(dataOptions, false)
     const result = await pool.query(query, params)
 
     // Serialize CSV
@@ -445,7 +445,7 @@ export class PostgresAdapter implements SQLAdapter {
       offset: undefined
     }
 
-    const { query, params } = buildTableDataQuery(dataOptions)
+    const { query, params } = buildTableDataQuery(dataOptions, false)
     const result = await pool.query(query, params)
 
     // Serialize SQL

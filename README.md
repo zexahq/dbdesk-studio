@@ -130,6 +130,53 @@ pnpm run build
 pnpm run typecheck
 ```
 
+### Regression and package checks
+
+```bash
+pnpm test
+pnpm build
+pnpm test:package
+```
+
+The package check packs the root npm package, installs it offline into a fresh
+temporary project, and verifies bundled assets, the runtime registry, API proxying,
+startup failures and shutdown. It does not link or publish the package.
+To include real PostgreSQL export, transaction and cancellation checks, set
+`DBDESK_TEST_DATABASE_URL` to a disposable test database before running `pnpm test`.
+CI runs these checks against its own PostgreSQL service.
+
+### Local operation and embedding
+
+The npm CLI and API bind to `127.0.0.1` by default. Container hosts can set
+`HOST=0.0.0.0`; the provided Docker stages do this explicitly. Supplying
+`--backend-url` uses that existing backend without starting a local API process.
+Ctrl+C stops the CLI's own services and closes database pools.
+
+Embedded hosts should wait for `dbdesk-ready` before sending connection messages.
+Connection handshakes run in order so overlapping messages cannot change project
+scope midway through a connection. A failed workspace flush keeps the previous
+project selected and returns the configured connection-error event; retry the
+connection after storage becomes available. Failed drafts remain pending while
+their workspace is open. Configure `allowedOrigins`, `targetOrigin` and
+project settings in the runtime registry. When mounting below a path, inject
+`window.__DBDESK_BASE_PATH__` before boot and set a matching HTML `<base href>`
+before asset tags, so deep links also resolve scripts and styles from that prefix.
+The npm package serves `apps/web/dist/runtime.yaml`; an embedding host can
+serve its own `runtime.yaml` at the same URL prefix.
+
+Connections, saved queries, dashboards and workspaces keep their existing JSON
+formats. Saves lock the full update across local processes and replace files
+atomically; malformed files are preserved and reported instead of reset. If a
+crashed process leaves a `.lock` file in the storage directory, stop all Studio
+processes before removing that lock and restarting. Storage defaults to
+`~/.config/dbdesk-studio` and can be changed with `STORAGE_PATH`.
+
+Query history is stored in the current browser, scoped by connection, with the
+latest 100 entries across connections. It records SQL, duration and outcome,
+without result rows. Clear a connection's entries from its History menu. Entries
+larger than 10,000 characters show a preview and cannot be restored as partial SQL.
+Hosts that disable browser storage still get in-memory history for the session.
+
 ## Project Structure
 
 ```

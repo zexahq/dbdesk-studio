@@ -22,6 +22,7 @@ embedding:
     hideDisconnect: false
     hideSidebar: false
   projects:
+    # Connect messages run in order; a failed edit flush prevents project switching.
     enabled: false
     id: ""
   theme:
@@ -36,6 +37,7 @@ embedding:
     clearRememberedOnDisconnect: true
 
 routing:
+  # Prefix hosts inject the bootstrap base path and a matching HTML <base href>.
   basePath: /
   apiBasePath: ""
   postConnectPath: /connections/{connectionId}

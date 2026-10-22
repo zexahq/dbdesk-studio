@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/resizable'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { cn } from '@/lib/utils'
+import { subscribeWorkspaceAutosave } from '@/lib/workspace'
 import { useTabCloseHandler } from '@/hooks/use-tab-close-handler'
 import { useSqlWorkspaceStore } from '@/store/sql-workspace-store'
 import { useTabStore } from '@/store/tab-store'
@@ -50,6 +51,8 @@ export function SqlWorkspace({ profile }: { profile: SQLConnectionProfile }) {
   const setActiveSurface = useSqlWorkspaceStore((s) => s.setActiveSurface)
   const { requestCloseTab, dialogProps } = useTabCloseHandler(profile)
   const lastInitializedConnectionId = useRef<string | null>(null)
+
+  useEffect(() => subscribeWorkspaceAutosave(profile.id), [profile.id])
 
   const { data: schemasWithTables } = useSchemasWithTables(profile.id)
   const activeDashboardId = activeTab?.kind === 'dashboard' ? activeTab.dashboardId : null

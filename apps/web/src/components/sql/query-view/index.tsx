@@ -9,6 +9,7 @@ import {
 import { useSavedQueriesStore } from '@/store/saved-queries-store'
 import { useSqlWorkspaceStore } from '@/store/sql-workspace-store'
 import { type QueryTab, useTabStore } from '@/store/tab-store'
+import { useQueryHistoryStore } from '@/store/query-history-store'
 import { toast } from '@/lib/toast'
 import {
   getInitialStatementKeyword,
@@ -79,6 +80,12 @@ export function QueryView({ profile, activeTab }: QueryViewProps) {
       if (queries.length === 0) return
       const queryId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`
       queryIdRef.current = queryId
+      const startedAt = new Date().toISOString()
+      const started = performance.now()
+      const record = (outcome: 'succeeded' | 'failed') => useQueryHistoryStore.getState().record({
+        id: queryId, connectionId: profile.id, sql: queries.join(';\n'), startedAt,
+        durationMs: performance.now() - started, outcome
+      })
       updateQueryTab(activeTab.id, {
         queryResults: undefined,
         batchResults: undefined,
@@ -89,6 +96,7 @@ export function QueryView({ profile, activeTab }: QueryViewProps) {
       try {
         if (queries.length === 1) {
           const result = await runQueryMutation({ query: queries[0], options: { limit, offset, queryId } })
+          record('succeeded')
           updateQueryTab(activeTab.id, {
             queryResults: result,
             limit: result.limit,
@@ -98,15 +106,17 @@ export function QueryView({ profile, activeTab }: QueryViewProps) {
           })
         } else {
           const results = await runManyMutation.mutateAsync({ queries, options: { limit, offset, queryId } })
+          record(results.some((result) => result.error) ? 'failed' : 'succeeded')
           updateQueryTab(activeTab.id, { batchResults: results, activeResultIndex: 0, isExplainPlan: false })
         }
       } catch {
+        record('failed')
         updateQueryTab(activeTab.id, { queryResults: undefined, batchResults: undefined })
       } finally {
         queryIdRef.current = null
       }
     },
-    [activeTab.id, runManyMutation, runQueryMutation, updateQueryTab]
+    [activeTab.id, profile.id, runManyMutation, runQueryMutation, updateQueryTab]
   )
 
   const executeQueryWithPagination = useCallback(
@@ -220,6 +230,7 @@ export function QueryView({ profile, activeTab }: QueryViewProps) {
         <ResizableHandle />
         <ResizablePanel defaultSize={50} minSize={30}>
           <QueryResults
+            connectionId={profile.id}
             queryResults={activeTab.queryResults}
             batchResults={activeTab.batchResults}
             activeResultIndex={activeTab.activeResultIndex}
@@ -230,7 +241,12 @@ export function QueryView({ profile, activeTab }: QueryViewProps) {
             isExplainPlan={activeTab.isExplainPlan}
             onCancel={() => {
               const id = activeTab.hostRunning ? activeTab.hostActionId : queryIdRef.current
-              if (id) void cancelMutation.mutateAsync(id)
+              if (id) void cancelMutation.mutateAsync(id).then((result) => {
+                if (result.cancelled) toast.success('Cancellation requested')
+                else toast.info('Query is no longer running or could not be cancelled')
+              }).catch((error: unknown) => {
+                toast.error(error instanceof Error ? error.message : 'Could not cancel query')
+              })
             }}
             onResultSelect={(index) => updateQueryTab(activeTab.id, { activeResultIndex: index })}
           />

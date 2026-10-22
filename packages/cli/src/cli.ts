@@ -1,321 +1,184 @@
-import { spawn } from 'child_process'
-import path from 'path'
-import { fileURLToPath } from 'url'
-import { dirname } from 'path'
-import * as fs from 'fs'
+import { spawn, type ChildProcess } from 'node:child_process'
+import { createServer, request as httpRequest, type Server } from 'node:http'
+import { request as httpsRequest } from 'node:https'
+import { promises as fs, existsSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
-
-interface Config {
-  backendPort: number
-  frontendPort: number
-  backendUrl: string
-  uri?: string
-}
-
-const DEFAULT_CONFIG: Config = {
-  backendPort: 6789,
-  frontendPort: 9876,
-  backendUrl: 'http://localhost:6789',
-  uri: undefined
-}
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
 
 function parseArgs() {
+  const config = { backendPort: 6789, frontendPort: 9876, backendUrl: '', uri: '' }
   const args = process.argv.slice(2)
-  const config = { ...DEFAULT_CONFIG }
-
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--backend-port') {
-      const port = args[i + 1]
-      if (port) config.backendPort = parseInt(port, 10)
-      i++
-    } else if (args[i] === '--frontend-port') {
-      const port = args[i + 1]
-      if (port) config.frontendPort = parseInt(port, 10)
-      i++
-    } else if (args[i] === '--backend-url') {
-      const url = args[i + 1]
-      if (url) config.backendUrl = url
-      i++
-    } else if (args[i] === '--uri') {
-      const next = args[i + 1]
-      if (!next || next.startsWith('-')) {
-        console.error('Error: --uri requires a value.')
-        printHelp()
-        process.exit(1)
+    const arg = args[i]!
+    if (arg === '--help' || arg === '-h') {
+      console.log(`Usage: dbdesk-studio [options]
+  --backend-port <port>  Local API port (default: 6789)
+  --frontend-port <port> Local UI port (default: 9876)
+  --backend-url <url>    Use an existing backend instead of starting one
+  --uri <uri>            Open a PostgreSQL connection
+  --help, -h            Show this help message
+
+Local services bind to 127.0.0.1. Set HOST explicitly for container embedding.`)
+      process.exit(0)
+    }
+    if (arg.startsWith('--uri=')) {
+      config.uri = arg.slice(6)
+      if (!config.uri) throw new Error('--uri requires a value')
+      continue
+    }
+    if (!['--backend-port', '--frontend-port', '--backend-url', '--uri'].includes(arg)) {
+      throw new Error(`Unknown option: ${arg}`)
+    }
+    const value = args[++i]
+    if (!value || value.startsWith('--')) throw new Error(`${arg} requires a value`)
+    if (arg === '--uri') config.uri = value
+    else if (arg === '--backend-url') {
+      const url = new URL(value)
+      if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
+        throw new Error('--backend-url requires an HTTP(S) URL without credentials, query or fragment')
       }
-      config.uri = next
-      i++
+      config.backendUrl = value.replace(/\/$/, '')
     } else {
-      const arg = args[i]
-      if (arg && arg.startsWith('--uri=')) {
-        config.uri = arg.slice('--uri='.length)
-      } else if (arg === '--help' || arg === '-h') {
-        printHelp()
-        process.exit(0)
+      const port = Number(value)
+      if (!/^\d+$/.test(value) || !Number.isInteger(port) || port < 1 || port > 65535) {
+        throw new Error(`${arg} must be an integer between 1 and 65535`)
       }
+      if (arg === '--backend-port') config.backendPort = port
+      else config.frontendPort = port
     }
   }
-
+  if (!config.backendUrl && config.backendPort === config.frontendPort) throw new Error('Frontend and backend ports must be different')
   return config
 }
 
-function printHelp() {
-  console.log(`
-  Usage: dbdesk-studio [options]
+let backend: ChildProcess | undefined
+let frontend: Server | undefined
+let stopping = false
 
-  Options:
-    --uri <connection-string>  Database connection URI (opens directly to connection)
-                               Supports: postgresql://, postgres://
-    --backend-port <port>      Backend server port (default: 6789)
-    --frontend-port <port>     Frontend server port (default: 9876)
-    --backend-url <url>        Backend URL for frontend (default: http://localhost:6789)
-    --help, -h                 Show this help message
-
-  Examples:
-    dbdesk-studio
-    dbdesk-studio --uri "postgresql://user:pass@localhost:5432/mydb"
-    dbdesk-studio --backend-port 4000 --frontend-port 8080
-    dbdesk-studio --backend-url http://api.example.com
-  `)
+async function stop(code: number) {
+  if (stopping) return
+  stopping = true
+  const shutdown = setTimeout(() => { backend?.kill('SIGKILL'); process.exit(code) }, 6000)
+  shutdown.unref()
+  if (frontend) {
+    frontend.closeAllConnections()
+    await new Promise<void>((resolve) => frontend!.close(() => resolve()))
+  }
+  if (backend && backend.exitCode === null && backend.signalCode === null) {
+    const exited = new Promise<void>((resolve) => backend!.once('exit', () => resolve()))
+    backend.kill('SIGTERM')
+    await exited
+  }
+  clearTimeout(shutdown)
+  process.exitCode = code
 }
 
-function getServerPath(): string {
-  // Try to find the server in different possible locations
-  const possiblePaths = [
-    path.join(__dirname, '../../..', 'apps/server/dist/index.mjs'),
-    path.join(__dirname, '../../..', 'apps/server/dist/index.js'),
-    path.join(__dirname, '../../../apps/server/dist/index.mjs'),
-    path.join(__dirname, '../../../apps/server/dist/index.js'),
-    path.join(__dirname, '../../server/dist/index.mjs'),
-    path.join(__dirname, '../../server/dist/index.js'),
-  ]
-
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) {
-      return p
-    }
-  }
-
-  // Fallback - try using tsx to run the TS directly
-  const tsPath = path.join(__dirname, '../../..', 'apps/server/src/index.ts')
-  if (fs.existsSync(tsPath)) {
-    return tsPath
-  }
-
-  throw new Error('Could not find server app. Make sure to run: pnpm build')
-}
-
-function getWebDistPath(): string {
-  const possiblePaths = [
-    path.join(__dirname, '../../..', 'apps/web/dist'),
-    path.join(__dirname, '../../../apps/web/dist'),
-    path.join(__dirname, '../../web/dist'),
-  ]
-
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) {
-      return p
-    }
-  }
-
-  throw new Error('Could not find web app dist. Make sure to run: pnpm build')
-}
-
-function startBackend(config: Config): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const serverPath = getServerPath()
-    const useTs = serverPath.endsWith('.ts')
-
-    const args = useTs ? [serverPath] : []
-    const cmd = useTs ? 'tsx' : 'node'
-
-    const env = {
-      ...process.env,
-      PORT: String(config.backendPort),
-      NODE_ENV: process.env.NODE_ENV || 'production'
-    }
-
-    const backend = spawn(cmd, args, {
-      env,
-      stdio: 'ignore'
+async function startBackend(port: number): Promise<void> {
+  const serverPath = ['index.mjs', 'index.js'].map((name) => path.join(root, 'apps/server/dist', name)).find(existsSync)
+  if (!serverPath) throw new Error('Server build is missing. Run pnpm build before starting Studio.')
+  await new Promise<void>((resolve, reject) => {
+    backend = spawn(process.execPath, [serverPath], {
+      env: { ...process.env, PORT: String(port), HOST: process.env.HOST || '127.0.0.1', NODE_ENV: process.env.NODE_ENV || 'production' },
+      stdio: ['ignore', 'inherit', 'inherit', 'ipc']
     })
-
-    backend.on('error', (err) => {
-      console.error('❌ Failed to start backend:', err.message)
-      reject(err)
+    const timeout = setTimeout(() => reject(new Error('Backend did not become ready within 15 seconds')), 15000)
+    backend.once('error', (error) => { clearTimeout(timeout); reject(error) })
+    backend.once('exit', (code, signal) => {
+      clearTimeout(timeout)
+      if (!stopping) {
+        reject(new Error(`Backend exited before or during operation (${signal || code})`))
+        void stop(code || 1)
+      }
     })
-
-    // Give backend time to start
-    setTimeout(() => {
-      resolve()
-    }, 2000)
+    backend.on('message', (message) => {
+      if (message && typeof message === 'object' && 'type' in message && message.type === 'dbdesk-ready') {
+        clearTimeout(timeout)
+        resolve()
+      }
+    })
   })
 }
 
-function startFrontend(config: Config): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const webDistPath = getWebDistPath()
-
-    // Create a simple HTTP server to serve static files
-    const serverScript = `
-const http = require('http');
-const https = require('https');
-const fs = require('fs');
-const path = require('path');
-const { URL } = require('url');
-
-const distPath = '${webDistPath}';
-const port = ${config.frontendPort};
-const backendUrl = ${JSON.stringify(config.backendUrl)};
-
-function proxyApiRequest(req, res) {
-  const target = new URL(req.url || '/', backendUrl);
-  const transport = target.protocol === 'https:' ? https : http;
-  const proxy = transport.request(target, {
-    method: req.method,
-    headers: { ...req.headers, host: target.host }
-  }, (backendResponse) => {
-    res.writeHead(backendResponse.statusCode || 502, backendResponse.headers);
-    backendResponse.pipe(res);
-  });
-
-  proxy.on('error', (error) => {
-    res.writeHead(502, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Backend unavailable', detail: error.message }));
-  });
-  req.pipe(proxy);
-}
-
-const server = http.createServer((req, res) => {
-  if (req.url === '/api' || req.url.startsWith('/api/')) {
-    proxyApiRequest(req, res);
-    return;
-  }
-
-  let filePath = path.join(distPath, req.url === '/' ? 'index.html' : req.url);
-  const extname = path.extname(filePath);
-  
-  let contentType = 'text/html';
-  if (extname === '.js') contentType = 'text/javascript';
-  if (extname === '.css') contentType = 'text/css';
-  if (extname === '.json') contentType = 'application/json';
-  if (extname === '.png') contentType = 'image/png';
-  if (extname === '.jpg') contentType = 'image/jpeg';
-  if (extname === '.svg') contentType = 'image/svg+xml';
-  if (extname === '.woff') contentType = 'font/woff';
-  if (extname === '.woff2') contentType = 'font/woff2';
-
-  fs.readFile(filePath, (err, content) => {
-    if (err) {
-      if (fs.existsSync(path.join(distPath, 'index.html'))) {
-        fs.readFile(path.join(distPath, 'index.html'), (err, content) => {
-          res.writeHead(200, { 'Content-Type': 'text/html' });
-          res.end(content, 'utf-8');
-        });
-      } else {
-        res.writeHead(404);
-        res.end('Not found');
-      }
-    } else {
-      res.writeHead(200, { 'Content-Type': contentType });
-      res.end(content, 'utf-8');
+async function startFrontend(port: number, backendUrl: string): Promise<void> {
+  const dist = path.join(root, 'apps/web/dist')
+  await fs.access(path.join(dist, 'index.html'))
+  const mime: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
+    '.json': 'application/json', '.yaml': 'application/yaml', '.yml': 'application/yaml', '.png': 'image/png',
+    '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2' }
+  frontend = createServer(async (req, res) => {
+    const url = new URL(req.url || '/', 'http://localhost')
+    if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
+      const target = new URL(backendUrl + url.pathname + url.search)
+      const proxy = (target.protocol === 'https:' ? httpsRequest : httpRequest)(target, {
+        method: req.method, headers: { ...req.headers, host: target.host }
+      }, (response) => {
+        res.writeHead(response.statusCode || 502, response.headers)
+        response.pipe(res)
+      })
+      proxy.on('error', () => {
+        if (!res.headersSent) res.writeHead(502, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'Backend unavailable' }))
+      })
+      req.on('aborted', () => proxy.destroy())
+      req.pipe(proxy)
+      return
     }
-  });
-});
-
-server.listen(port, () => {});
-`
-
-    const frontendServer = spawn('node', ['-e', serverScript], {
-      stdio: 'inherit'
-    })
-
-    frontendServer.on('error', (err) => {
-      console.error('❌ Failed to start frontend:', err.message)
-      reject(err)
-    })
-
-    setTimeout(() => {
-      resolve()
-    }, 1000)
+    try {
+      const pathname = decodeURIComponent(url.pathname)
+      let file = path.resolve(dist, '.' + pathname)
+      if (file !== dist && !file.startsWith(dist + path.sep)) { res.writeHead(403); res.end(); return }
+      if (pathname.endsWith('/')) file = path.join(file, 'index.html')
+      let content: Buffer
+      try { content = await fs.readFile(file) }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+        if (path.extname(pathname)) { res.writeHead(404); res.end('Not found'); return }
+        file = path.join(dist, 'index.html')
+        content = await fs.readFile(file)
+      }
+      res.writeHead(200, { 'Content-Type': mime[path.extname(file)] || 'application/octet-stream' })
+      res.end(req.method === 'HEAD' ? undefined : content)
+    } catch {
+      res.writeHead(400)
+      res.end('Invalid request')
+    }
+  })
+  await new Promise<void>((resolve, reject) => {
+    frontend!.once('error', reject)
+    frontend!.listen(port, process.env.HOST || '127.0.0.1', () => resolve())
   })
 }
 
 async function main() {
-  const parsedConfig = parseArgs()
-  const config = {
-    ...parsedConfig,
-    // Keep the default frontend proxy aligned with --backend-port.
-    backendUrl:
-      parsedConfig.backendUrl === DEFAULT_CONFIG.backendUrl
-        ? `http://localhost:${parsedConfig.backendPort}`
-        : parsedConfig.backendUrl
-  }
-
-  try {
-    // Start both services
-    await Promise.all([
-      startBackend(config),
-      startFrontend(config)
-    ])
-
-    const baseUrl = `http://localhost:${config.frontendPort}`
-
-    // If URI is provided, create connection via backend API first
-    if (config.uri) {
-      console.log('dbdesk-studio running...')
-      console.log('Creating connection from URI...')
-      
-      try {
-        const connectionId = await createConnectionFromUri(config.uri, config.backendUrl)
-        const appUrl = `${baseUrl}/connections/${connectionId}`
-        console.log(`Connection created! Opening ${baseUrl}/connections/<id>`)
-        openBrowser(appUrl)
-      } catch (err) {
-        console.error('Failed to create connection from URI:', err instanceof Error ? err.message : err)
-        console.log(`You can still access the studio at ${baseUrl}`)
-        openBrowser(baseUrl)
-      }
-    } else {
-      console.log(`dbdesk-studio running at ${baseUrl}`)
+  const config = parseArgs()
+  process.once('SIGINT', () => { void stop(0) })
+  process.once('SIGTERM', () => { void stop(0) })
+  const backendUrl = config.backendUrl || `http://127.0.0.1:${config.backendPort}`
+  if (!config.backendUrl) await startBackend(config.backendPort)
+  await startFrontend(config.frontendPort, backendUrl)
+  const baseUrl = `http://localhost:${config.frontendPort}`
+  console.log(`dbdesk-studio running at ${baseUrl}`)
+  if (config.uri) {
+    const response = await fetch(`${backendUrl}/api/connections/from-uri`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ uri: config.uri })
+    })
+    const profile = await response.json() as { id?: string; error?: string }
+    if (!response.ok || !profile.id) {
+      console.error('Connection could not be created. Check the connection details in Studio.')
+      return
     }
-  } catch (err) {
-    console.error('❌ Failed to start services:', err)
-    process.exit(1)
+    const url = `${baseUrl}/connections/${encodeURIComponent(profile.id)}`
+    const opener = process.platform === 'darwin' ? ['open', url] : process.platform === 'win32'
+      ? ['cmd.exe', '/c', 'start', '""', url] : ['xdg-open', url]
+    const child = spawn(opener[0]!, opener.slice(1), { stdio: 'ignore', detached: true })
+    child.on('error', () => console.log(`Open ${baseUrl} in your browser`))
+    child.unref()
   }
 }
 
-async function createConnectionFromUri(uri: string, backendUrl: string): Promise<string> {
-  const response = await fetch(`${backendUrl.replace(/\/$/, '')}/api/connections/from-uri`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ uri })
-  })
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: string }
-    throw new Error(errorData.error || `HTTP ${response.status}`)
-  }
-
-  const profile = await response.json() as { id: string }
-  return profile.id
-}
-
-function openBrowser(url: string) {
-  const platform = process.platform
-
-  if (platform === 'darwin') {
-    spawn('open', [url], { stdio: 'ignore', detached: true }).unref()
-  } else if (platform === 'win32') {
-    // 'start' is a cmd.exe builtin, not an executable
-    spawn('cmd.exe', ['/c', 'start', '""', url], { stdio: 'ignore', detached: true }).unref()
-  } else {
-    spawn('xdg-open', [url], { stdio: 'ignore', detached: true }).unref()
-  }
-}
-
-main()
+main().catch(async (error: unknown) => {
+  console.error(error instanceof Error ? error.message : 'Studio could not start')
+  await stop(1)
+})

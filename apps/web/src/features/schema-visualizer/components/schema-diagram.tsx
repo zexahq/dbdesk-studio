@@ -186,6 +186,7 @@ function SchemaDiagramCanvas({ connectionId, schemasWithTables, onOpenTable }: S
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null)
   const flowContainerRef = useRef<HTMLDivElement>(null)
   const loadVersionRef = useRef(0)
+  const loadAbortRef = useRef<AbortController | null>(null)
   const displayedConnectionIdRef = useRef<string | null>(null)
   const setTableColumns = useSqlWorkspaceStore((s) => s.setTableColumns)
   const { fitView, getNodes, zoomIn, zoomOut } = useReactFlow()
@@ -200,6 +201,9 @@ function SchemaDiagramCanvas({ connectionId, schemasWithTables, onOpenTable }: S
   const loadDiagram = useCallback(
     async (force = false) => {
       const loadVersion = ++loadVersionRef.current
+      loadAbortRef.current?.abort()
+      const controller = new AbortController()
+      loadAbortRef.current = controller
       setIsLoading(true)
       try {
         const cachedTables: TableInfo[] = []
@@ -216,8 +220,9 @@ function SchemaDiagramCanvas({ connectionId, schemasWithTables, onOpenTable }: S
           missingTargets,
           MAX_CONCURRENT_INTROSPECTIONS,
           async ({ schema, table }) => {
-            const tableInfo = await dbdeskClient.introspectTable(connectionId, schema, table)
-            if (useSqlWorkspaceStore.getState().currentConnectionId === connectionId) {
+            controller.signal.throwIfAborted()
+            const tableInfo = await dbdeskClient.introspectTable(connectionId, schema, table, controller.signal)
+            if (loadVersion === loadVersionRef.current && useSqlWorkspaceStore.getState().currentConnectionId === connectionId) {
               setTableColumns({
                 ...useSqlWorkspaceStore.getState().tableColumns,
                 [`${schema}.${table}`]: tableInfo.columns
@@ -260,6 +265,10 @@ function SchemaDiagramCanvas({ connectionId, schemasWithTables, onOpenTable }: S
 
   useEffect(() => {
     void loadDiagram()
+    return () => {
+      loadVersionRef.current += 1
+      loadAbortRef.current?.abort()
+    }
   }, [loadDiagram])
 
   useEffect(() => {

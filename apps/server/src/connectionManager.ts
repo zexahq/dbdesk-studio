@@ -5,6 +5,7 @@ export class ConnectionManager {
   private static instance: ConnectionManager
 
   private readonly connections = new Map<string, DBAdapter>()
+  private readonly connecting = new Map<string, Promise<DBAdapter>>()
 
   public static getInstance(): ConnectionManager {
     if (!ConnectionManager.instance) {
@@ -27,17 +28,25 @@ export class ConnectionManager {
     if (existingConnection) {
       return existingConnection
     }
+    const pending = this.connecting.get(profileId)
+    if (pending) return pending
 
     const adapter = adapterRegistry.createAdapter(type, options)
 
-    try {
-      await adapter.connect()
-      this.connections.set(profileId, adapter)
-      return adapter
-    } catch (error) {
-      await adapter.disconnect().catch(() => {})
-      throw error
-    }
+    const connection = (async () => {
+      try {
+        await adapter.connect()
+        this.connections.set(profileId, adapter)
+        return adapter
+      } catch (error) {
+        await adapter.disconnect().catch(() => {})
+        throw error
+      } finally {
+        this.connecting.delete(profileId)
+      }
+    })()
+    this.connecting.set(profileId, connection)
+    return connection
   }
 
   public getConnection(profileId: string): DBAdapter | undefined {
@@ -53,6 +62,7 @@ export class ConnectionManager {
   }
 
   public async closeConnection(profileId: string): Promise<void> {
+    await this.connecting.get(profileId)?.catch(() => {})
     const adapter = this.connections.get(profileId)
     if (!adapter) {
       return
@@ -63,6 +73,7 @@ export class ConnectionManager {
   }
 
   public async closeAll(): Promise<void> {
+    await Promise.allSettled(this.connecting.values())
     const closePromises = Array.from(this.connections.entries()).map(
       async ([profileId, adapter]) => {
         this.connections.delete(profileId)

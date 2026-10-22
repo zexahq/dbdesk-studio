@@ -10,10 +10,17 @@
     "apps/*",
     "packages/*"
   ],
+  "files": [
+    "packages/cli/dist",
+    "apps/server/dist",
+    "apps/web/dist"
+  ],
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
     "typecheck": "turbo check-types",
+    "test": "pnpm --filter server exec tsx --tsconfig ../../apps/web/tsconfig.json --test ../../test/*.ts",
+    "test:package": "node test/package-smoke.mjs",
     "dev:native": "turbo -F native dev",
     "dev:web": "turbo -F web dev",
     "dev:server": "turbo -F server dev",
@@ -33,11 +40,7 @@
     "type": "git",
     "url": "https://github.com/zexahq/dbdesk-studio.git"
   },
-  "dependencies": {
-    "@dbdesk-studio/env": "workspace:*",
-    "dotenv": "catalog:",
-    "zod": "catalog:"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@dbdesk-studio/config": "workspace:*",
     "@types/node": "catalog:",

@@ -1,6 +1,6 @@
-import { promises as fs } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
+import { readJsonFile, updateJsonFile } from './json-storage'
 import { env } from '@dbdesk-studio/env/server'
 import type { ConnectionProfile } from '@common/types'
 
@@ -37,24 +37,7 @@ const deserializeProfile = (stored: StoredConnectionProfile): ConnectionProfile 
   }) as ConnectionProfile
 
 const readProfilesFromDisk = async (): Promise<StoredConnectionProfile[]> => {
-  const filePath = getStoragePath()
-
-  try {
-    const content = await fs.readFile(filePath, 'utf8')
-    return JSON.parse(content) as StoredConnectionProfile[]
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return []
-    }
-
-    throw error
-  }
-}
-
-const writeProfilesToDisk = async (profiles: StoredConnectionProfile[]): Promise<void> => {
-  const filePath = getStoragePath()
-  await fs.mkdir(dirname(filePath), { recursive: true })
-  await fs.writeFile(filePath, JSON.stringify(profiles, null, 2), 'utf8')
+  return readJsonFile(getStoragePath(), () => [])
 }
 
 export const loadProfiles = async (projectId?: string): Promise<ConnectionProfile[]> => {
@@ -75,26 +58,27 @@ export const getProfile = async (profileId: string, projectId?: string): Promise
 }
 
 export const saveProfile = async (profile: ConnectionProfile, projectId?: string): Promise<void> => {
-  const storedProfiles = await readProfilesFromDisk()
-  const scopedProfile = projectId ? { ...profile, projectId } : profile
-  const index = storedProfiles.findIndex((item) => item.id === scopedProfile.id && (!projectId || item.projectId === projectId))
+  await updateJsonFile<StoredConnectionProfile[], void>(getStoragePath(), () => [], (storedProfiles) => {
+    const scopedProfile = projectId ? { ...profile, projectId } : profile
+    const index = storedProfiles.findIndex((item) => item.id === scopedProfile.id && (!projectId || item.projectId === projectId))
 
-  const serializedProfile = serializeProfile(scopedProfile)
+    const serializedProfile = serializeProfile(scopedProfile)
 
-  if (index >= 0) {
-    storedProfiles[index] = serializedProfile
-  } else {
-    storedProfiles.push(serializedProfile)
-  }
+    if (index >= 0) {
+      storedProfiles[index] = serializedProfile
+    } else {
+      storedProfiles.push(serializedProfile)
+    }
 
-  await writeProfilesToDisk(storedProfiles)
+  })
 }
 
 export const deleteProfile = async (profileId: string, projectId?: string): Promise<void> => {
-  const storedProfiles = await readProfilesFromDisk()
-  const filteredProfiles = storedProfiles.filter((profile) =>
-    profile.id !== profileId || (projectId !== undefined && profile.projectId !== projectId)
-  )
+  await updateJsonFile<StoredConnectionProfile[], void>(getStoragePath(), () => [], (storedProfiles) => {
+    const filteredProfiles = storedProfiles.filter((profile) =>
+      profile.id !== profileId || (projectId !== undefined && profile.projectId !== projectId)
+    )
 
-  await writeProfilesToDisk(filteredProfiles)
+    storedProfiles.splice(0, storedProfiles.length, ...filteredProfiles)
+  })
 }

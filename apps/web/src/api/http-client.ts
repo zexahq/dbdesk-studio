@@ -168,9 +168,10 @@ import type {
       return request<SchemaWithTables[]>(`/api/connections/${connectionId}/schemas-with-tables`)
     },
   
-    async introspectTable(connectionId: string, schema: string, table: string): Promise<TableInfo> {
+    async introspectTable(connectionId: string, schema: string, table: string, signal?: AbortSignal): Promise<TableInfo> {
       return request<TableInfo>(
-        `/api/connections/${connectionId}/schemas/${encodeURIComponent(schema)}/tables/${encodeURIComponent(table)}/introspect`
+        `/api/connections/${connectionId}/schemas/${encodeURIComponent(schema)}/tables/${encodeURIComponent(table)}/introspect`,
+        { signal }
       )
     },
   
@@ -247,9 +248,13 @@ import type {
     },
   
     async saveWorkspace(workspace: ConnectionWorkspace): Promise<void> {
+      const body = JSON.stringify(workspace)
       await request<void>(`/api/connections/${workspace.connectionId}/workspace`, {
         method: 'POST',
-        body: JSON.stringify(workspace)
+        body,
+        // Browsers can finish small workspace flushes during a reload. Larger
+        // drafts use the regular debounced save because keepalive has a quota.
+        keepalive: new TextEncoder().encode(body).byteLength < 60 * 1024
       })
     },
   

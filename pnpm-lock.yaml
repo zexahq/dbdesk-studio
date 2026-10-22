@@ -22,16 +22,6 @@ catalogs:
 importers:
 
   .:
-    dependencies:
-      '@dbdesk-studio/env':
-        specifier: workspace:*
-        version: link:packages/env
-      dotenv:
-        specifier: 'catalog:'
-        version: 17.2.3
-      zod:
-        specifier: 'catalog:'
-        version: 4.3.5
     devDependencies:
       '@dbdesk-studio/config':
         specifier: workspace:*

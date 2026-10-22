@@ -143,7 +143,7 @@ export function setupEmbeddedConnectListener(): void {
   const config = getRuntimeConfig()
   if (!isEmbedded()) return
 
-  console.log('[dbdesk-connect] isEmbedded:', isEmbedded())
+  let connectQueue = Promise.resolve()
 
   window.addEventListener('message', async (event) => {
     if (
@@ -155,91 +155,98 @@ export function setupEmbeddedConnectListener(): void {
       return
     }
 
-    // The connection payload is a host-to-Studio API. Do not add host-specific
-    // fields here; extend the shared contract only when another embedder needs
-    // the same capability.
-    const conn = event.data.connection
-    if (!conn || typeof conn !== 'object') return
+    const connect = async () => {
+      // The connection payload is a host-to-Studio API. Do not add host-specific
+      // fields here; extend the shared contract only when another embedder needs
+      // the same capability.
+      const conn = event.data.connection
+      if (!conn || typeof conn !== 'object') return
 
-    // A host may select the project dynamically. The API client then attaches
-    // this scope to the profile and every subsequent request.
-    if (typeof event.data.projectId === 'string' && event.data.projectId.trim()) {
-      ;(window as Window & { __DBDESK_PROJECT_ID__?: string }).__DBDESK_PROJECT_ID__ = event.data.projectId.trim()
-    }
-
-    const {
-      host,
-      port,
-      database,
-      user,
-      password,
-      type = config.embedding.connection.defaultType,
-      name,
-    } = conn as {
-      host: string
-      port: number
-      database: string
-      user: string
-      password: string
-      type?: string
-      name?: string
-    }
-
-    try {
-      const connectionType = type === 'postgres' ? 'postgres' : config.embedding.connection.defaultType
-      if (connectionType !== 'postgres') {
-        throw new Error(`Unsupported embedded connection type: ${connectionType}`)
+      const {
+        host,
+        port,
+        database,
+        user,
+        password,
+        type = config.embedding.connection.defaultType,
+        name,
+      } = conn as {
+        host: string
+        port: number
+        database: string
+        user: string
+        password: string
+        type?: string
+        name?: string
       }
-      const displayName = name || `${database || config.embedding.connection.defaultDatabase}@${host}`
 
-      // Lazy import avoids a startup cycle between the host bridge and API
-      // client, and keeps standalone startup independent of the bridge.
-      const { dbdeskClient } = await import('@/api/client')
+      try {
+        const { saveCurrentWorkspace } = await import('@/lib/workspace')
+        await saveCurrentWorkspace()
+        // Switch request scope only after the previous project's edits are saved.
+        if (typeof event.data.projectId === 'string' && event.data.projectId.trim()) {
+          ;(window as Window & { __DBDESK_PROJECT_ID__?: string }).__DBDESK_PROJECT_ID__ = event.data.projectId.trim()
+        }
+        const connectionType = type === 'postgres' ? 'postgres' : config.embedding.connection.defaultType
+        if (connectionType !== 'postgres') {
+          throw new Error(`Unsupported embedded connection type: ${connectionType}`)
+        }
+        const displayName = name || `${database || config.embedding.connection.defaultDatabase}@${host}`
 
-      const resolvedPort = Number(port) || config.embedding.connection.defaultPort
-      const resolvedDatabase = database || config.embedding.connection.defaultDatabase
-      const resolvedUser = user || config.embedding.connection.defaultUser
-      const existingProfile = config.embedding.connection.reuseExistingProfile
-        ? (await dbdeskClient.listConnections()).find((candidate) => {
-            if (candidate.type !== 'postgres') return false
-            const options = candidate.options
-            return options.host === host && options.port === resolvedPort && options.database === resolvedDatabase && options.user === resolvedUser
-          })
-        : undefined
+        // Lazy import avoids a startup cycle between the host bridge and API
+        // client, and keeps standalone startup independent of the bridge.
+        const { dbdeskClient } = await import('@/api/client')
 
-      const profile = existingProfile
-        ? await dbdeskClient.updateConnection(existingProfile.id, displayName, 'postgres', {
-            host,
-            port: resolvedPort,
-            database: resolvedDatabase,
-            user: resolvedUser,
-            password: password || existingProfile.options.password
-          })
-        : await dbdeskClient.createConnection(displayName, 'postgres', {
-            host,
-            port: resolvedPort,
-            database: resolvedDatabase,
-            user: resolvedUser,
-            password
-          })
+        const resolvedPort = Number(port) || config.embedding.connection.defaultPort
+        const resolvedDatabase = database || config.embedding.connection.defaultDatabase
+        const resolvedUser = user || config.embedding.connection.defaultUser
+        const existingProfile = config.embedding.connection.reuseExistingProfile
+          ? (await dbdeskClient.listConnections()).find((candidate) => {
+              if (candidate.type !== 'postgres') return false
+              const options = candidate.options
+              return options.host === host && options.port === resolvedPort && options.database === resolvedDatabase && options.user === resolvedUser
+            })
+          : undefined
 
-      // Connect to it
-      await dbdeskClient.connect(profile.id)
+        const profile = existingProfile
+          ? await dbdeskClient.updateConnection(existingProfile.id, displayName, 'postgres', {
+              ...existingProfile.options,
+              host,
+              port: resolvedPort,
+              database: resolvedDatabase,
+              user: resolvedUser,
+              password: password || existingProfile.options.password
+            })
+          : await dbdeskClient.createConnection(displayName, 'postgres', {
+              host,
+              port: resolvedPort,
+              database: resolvedDatabase,
+              user: resolvedUser,
+              password
+            })
 
-      // Navigate to the SQL workspace
-      const path = interpolateConnectionPath(config.routing.postConnectPath, profile.id)
-      const basePath = normalizeBasePath(config.routing.basePath)
-      window.location.hash = `${basePath.replace(/\/$/, '')}${path}`
+        // Connect to it
+        await dbdeskClient.connect(profile.id)
 
-      // Notify parent of success
-      postToParent({ type: config.embedding.messages.connected, connectionId: profile.id })
-    } catch (err) {
-      console.error('[dbdesk-connect] Failed to create/connect:', err)
-      postToParent({
-        type: config.embedding.messages.connectError,
-        error: err instanceof Error ? err.message : String(err)
-      })
+        // Navigate to the SQL workspace
+        const path = interpolateConnectionPath(config.routing.postConnectPath, profile.id)
+        const basePath = normalizeBasePath(config.routing.basePath)
+        window.location.hash = `${basePath.replace(/\/$/, '')}${path}`
+
+        // Notify parent of success
+        postToParent({ type: config.embedding.messages.connected, connectionId: profile.id })
+      } catch (err) {
+        console.error('[dbdesk-connect] Failed to create/connect:', err)
+        postToParent({
+          type: config.embedding.messages.connectError,
+          error: err instanceof Error ? err.message : String(err)
+        })
+      }
     }
+    // A project scope is global to the HTTP client. Finish one connection
+    // handshake before another host message can switch that scope.
+    connectQueue = connectQueue.then(connect, connect)
+    return connectQueue
   })
 
   // Tell the parent we're ready to receive messages

@@ -4,8 +4,10 @@ import { cleanErrorMessage } from '@/lib/utils'
 import { ListTree, LoaderCircle, Play, Square } from 'lucide-react'
 import { ExplainPlan } from './explain-plan'
 import { SimpleTable } from './simple-table'
+import { QueryHistory } from './query-history'
 
 interface QueryResultsProps {
+  connectionId: string
   queryResults?: QueryResult
   batchResults?: QueryBatchResult[]
   activeResultIndex?: number
@@ -19,6 +21,7 @@ interface QueryResultsProps {
 }
 
 export function QueryResults({
+  connectionId,
   queryResults,
   batchResults,
   activeResultIndex = 0,
@@ -35,7 +38,8 @@ export function QueryResults({
   const displayedError = batchResult?.error ? new Error(batchResult.error) : error
   return (
     <div className="flex h-full w-full flex-col border-t">
-      <div className="flex items-center justify-end border-b p-2">
+      <div className="flex items-center justify-between border-b p-2">
+        <QueryHistory connectionId={connectionId} />
         {isLoading ? (
           <Button size="sm" variant="destructive" className="h-8 text-xs cursor-pointer" onClick={onCancel}>
             <Square className="size-3 fill-current" />

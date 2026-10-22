@@ -1,14 +1,14 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <base href="/" />
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script>window.__DBDESK_BASE_PATH__="";</script>
     <script>
-      const base = document.createElement("base");
+      const base = document.querySelector("base");
       const basePath = window.__DBDESK_BASE_PATH__ || "/";
       base.href = basePath.endsWith("/") ? basePath : `${basePath}/`;
-      document.head.appendChild(base);
     </script>
     <title>dbdesk-studio</title>
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
